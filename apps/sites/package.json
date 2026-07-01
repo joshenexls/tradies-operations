@@ -1,0 +1,43 @@
+{
+  "name": "@tradies/sites",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:visual": "playwright test",
+    "lint": "eslint src",
+    "seed": "tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "@tradies/compliance": "workspace:*",
+    "@tradies/db": "workspace:*",
+    "@tradies/fixtures": "workspace:*",
+    "@tradies/llm": "workspace:*",
+    "@tradies/site-spec": "workspace:*",
+    "@tradies/templates": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "nanoid": "^5.1.16",
+    "next": "^16.2.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/postcss": "^4.3.2",
+    "@tradies/config": "workspace:*",
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.0",
+    "tailwindcss": "^4.3.2",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^4.1.9"
+  }
+}

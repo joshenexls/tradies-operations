@@ -1,0 +1,30 @@
+{
+  "name": "@tradies/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "tsx src/gen.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@tradies/db": "workspace:*",
+    "@tradies/llm": "workspace:*",
+    "@tradies/site-spec": "workspace:*",
+    "@tradies/templates": "workspace:*",
+    "nanoid": "^5.1.16",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tsx": "^4.22.4"
+  },
+  "devDependencies": {
+    "@tradies/config": "workspace:*",
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.62.1"
+  }
+}

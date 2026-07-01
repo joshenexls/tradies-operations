@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+
+/* Template components live in the templates package — scan them too. */
+@source '../../../../packages/templates/src/**/*.tsx';
