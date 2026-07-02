@@ -20,6 +20,7 @@ import {
   GenerationFailedError,
   generateSiteVersion,
   resolveActivePreset,
+  resolveContentDocGeneratorFromEnv,
   resolveCostRatesFromEnv,
   resolveGeneratorFromEnv,
 } from '@tradies/engine'
@@ -89,6 +90,7 @@ export async function createManualProspect(
     await generateSiteVersion({
       db,
       generator: resolveGeneratorFromEnv(),
+      contentDocGenerator: resolveContentDocGeneratorFromEnv(),
       prospectId: prospect.id,
       facts,
       preset: resolved.preset,

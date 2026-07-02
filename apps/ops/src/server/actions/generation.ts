@@ -9,6 +9,7 @@ import {
   presetFromRow,
   prospectToFacts,
   resolveActivePreset,
+  resolveContentDocGeneratorFromEnv,
   resolveCostRatesFromEnv,
   resolveGeneratorFromEnv,
 } from '@tradies/engine'
@@ -49,6 +50,7 @@ export async function generateForProspect(
     const result = await generateSiteVersion({
       db,
       generator: resolveGeneratorFromEnv(),
+      contentDocGenerator: resolveContentDocGeneratorFromEnv(),
       prospectId,
       facts: prospectToFacts(prospect),
       preset,

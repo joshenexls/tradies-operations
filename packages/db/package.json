@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
+    "./pglite": "./src/pglite.ts",
     "./migrate": "./src/migrate.ts",
     "./test-harness": "./src/test-harness.ts"
   },

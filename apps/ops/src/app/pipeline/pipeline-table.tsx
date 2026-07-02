@@ -5,9 +5,11 @@ import Link from 'next/link'
 import {
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type RowSelectionState,
+  type SortingState,
 } from '@tanstack/react-table'
 import { formatDate, formatMicroGbp } from '@/lib/format'
 import { addToReviewBatch, generateBatch } from '@/server/actions/generation'
@@ -29,12 +31,15 @@ export type PipelineRow = {
   status: string
   slug: string | null
   previewHref: string | null
+  visits: number
+  devices: number
   costMicroGbp: number
   createdAt: string
 }
 
 export function PipelineTable({ rows }: { rows: PipelineRow[] }) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [sorting, setSorting] = useState<SortingState>([])
   const [message, setMessage] = useState<string | null>(null)
   const [batchLink, setBatchLink] = useState<string | null>(null)
   const [batchDialogOpen, setBatchDialogOpen] = useState(false)
@@ -129,6 +134,30 @@ export function PipelineTable({ rows }: { rows: PipelineRow[] }) {
           ),
       },
       {
+        id: 'visits',
+        accessorKey: 'visits',
+        header: ({ column }) => (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 hover:text-zinc-900"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'desc' ? false : true)}
+            title="Prospect preview opens (operator visits excluded) — click to sort"
+          >
+            Opened
+            {column.getIsSorted() === 'desc' ? ' ↓' : column.getIsSorted() === 'asc' ? ' ↑' : ''}
+          </button>
+        ),
+        cell: ({ row }) =>
+          row.original.visits > 0 ? (
+            <span className="font-mono text-xs text-emerald-700">
+              {row.original.visits}×
+              {row.original.devices > 1 ? ` · ${row.original.devices} dev` : ''}
+            </span>
+          ) : (
+            <span className="text-zinc-400">—</span>
+          ),
+      },
+      {
         header: 'Cost',
         accessorKey: 'costMicroGbp',
         cell: ({ getValue }) => (
@@ -149,10 +178,12 @@ export function PipelineTable({ rows }: { rows: PipelineRow[] }) {
   const table = useReactTable({
     data: rows,
     columns,
-    state: { rowSelection },
+    state: { rowSelection, sorting },
     onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   })
 
   const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id])

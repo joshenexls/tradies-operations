@@ -7,10 +7,21 @@
  *
  *   pnpm --filter @tradies/ops seed
  */
-import { createPgliteDb } from '@tradies/db'
 import { migrateDb } from '@tradies/db/migrate'
-import { prospects, reviewBatches, reviewRequests } from '@tradies/db/schema'
-import { generateSiteVersion, resolveActivePreset, seedStylePresets } from '@tradies/engine'
+import { createPgliteDb } from '@tradies/db/pglite'
+import {
+  inboxMessages,
+  inboxThreads,
+  prospects,
+  reviewBatches,
+  reviewRequests,
+} from '@tradies/db/schema'
+import {
+  generateSiteVersion,
+  resolveActivePreset,
+  seedDesignTemplates,
+  seedStylePresets,
+} from '@tradies/engine'
 import { allProspectFixtures } from '@tradies/fixtures'
 import { FixtureLLM } from '@tradies/llm'
 
@@ -21,6 +32,7 @@ async function main() {
   const db = createPgliteDb(dir)
   await migrateDb(db)
   await seedStylePresets(db)
+  await seedDesignTemplates(db)
 
   const generator = new FixtureLLM()
   const seededProspectIds: string[] = []
@@ -80,8 +92,31 @@ async function main() {
     }
   }
 
+  // One inbox thread with an inbound reply — the inbox e2e depends on it
+  const inboxProspectId = seededProspectIds[0]
+  if (inboxProspectId) {
+    const [thread] = await db
+      .insert(inboxThreads)
+      .values({
+        prospectId: inboxProspectId,
+        channel: 'email',
+        subject: 'Re: A new website for Swift Flow Plumbing',
+        status: 'needs_reply',
+        lastMessageAt: new Date(),
+      })
+      .returning()
+    if (thread) {
+      await db.insert(inboxMessages).values({
+        threadId: thread.id,
+        direction: 'inbound',
+        fromAddr: 'info@swiftflowplumbing.example',
+        bodyText: 'This looks great — how do I claim it?',
+      })
+    }
+  }
+
   console.log(
-    `Seeded ${seededProspectIds.length} fixture sites (+ review batch of ${reviewIds.length}) into ${dir}`,
+    `Seeded ${seededProspectIds.length} fixture sites (+ review batch of ${reviewIds.length}, 1 inbox thread) into ${dir}`,
   )
   process.exit(0)
 }

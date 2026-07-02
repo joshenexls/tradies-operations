@@ -5,9 +5,10 @@ import type { Trade } from '@tradies/site-spec'
 import { resolveClients } from '../lib/clients'
 import { getDb } from '../lib/db'
 import { discoverCity } from '../pipeline/discover-city'
-import { dispatchOutreach } from '../pipeline/dispatch-outreach'
+import { dispatchOutreach, reconcileOutreach } from '../pipeline/dispatch-outreach'
 import { enrichProspect } from '../pipeline/enrich-prospect'
 import { expirePreviews } from '../pipeline/expire-previews'
+import { generatePitchStep } from '../pipeline/generate-pitch-step'
 import { generateSiteSpecStep } from '../pipeline/generate-step'
 import { renderQa } from '../pipeline/render-qa'
 import { requestReview } from '../pipeline/request-review'
@@ -86,6 +87,8 @@ export const processProspectTask = task({
         feedback,
       })
       await renderQa(db, { prospectId: payload.prospectId, previewUrl })
+      // pitch before the review gate so the operator reviews site + pitch together
+      await generatePitchStep(db, { prospectId: payload.prospectId, feedback })
 
       const token = await wait.createToken({ timeout: '72h' })
       const review = await requestReview(db, {
@@ -121,4 +124,11 @@ export const expirePreviewsTask = schedules.task({
   id: 'expire_previews',
   cron: '0 3 * * *',
   run: async () => expirePreviews(getDb()),
+})
+
+/** Safety net behind the webhooks: re-check non-terminal outreach daily. */
+export const reconcileOutreachTask = schedules.task({
+  id: 'reconcile_outreach',
+  cron: '30 4 * * *',
+  run: async () => reconcileOutreach(getDb()),
 })

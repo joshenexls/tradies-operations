@@ -1,6 +1,13 @@
+import type { HtmlRenderContext } from '@tradies/html-templates'
+import { buildJsonLdFromFacts, type BusinessFacts } from '@tradies/site-spec'
 import type { TemplateContext } from '@tradies/templates'
 
 const OPERATOR_NAME = process.env.OPERATOR_BRAND_NAME ?? 'Tradies Studio'
+
+/** CHAT_WIDGET=0 hides the chat widget (visual-test stability); default on. */
+export function chatWidgetEnabled(): boolean {
+  return process.env.CHAT_WIDGET !== '0'
+}
 
 export function buildTemplateContext(input: {
   siteId: string
@@ -22,6 +29,31 @@ export function buildTemplateContext(input: {
           operatorName: OPERATOR_NAME,
           claimUrl: input.claimToken ? `/claim/${input.claimToken}` : undefined,
         }
+      : null,
+    privacyNoticeUrl: '/privacy-notice',
+  }
+}
+
+/** The html-design-system twin of buildTemplateContext — same URLs, same banner rules. */
+export function buildHtmlRenderContext(input: {
+  siteId: string
+  noindex: boolean
+  facts: BusinessFacts
+  claimToken?: string | null
+}): HtmlRenderContext {
+  return {
+    resolveImage: (ref) => ({ src: `/pool/${encodeURIComponent(ref.pool)}/${ref.index}` }),
+    leadFormAction: `/api/leads?site=${input.siteId}`,
+    previewBanner: input.noindex
+      ? {
+          operatorName: OPERATOR_NAME,
+          businessName: input.facts.businessName,
+          claimUrl: input.claimToken ? `/claim/${input.claimToken}` : undefined,
+        }
+      : null,
+    jsonLd: buildJsonLdFromFacts(input.facts),
+    chatEmbed: chatWidgetEnabled()
+      ? { src: '/embed/v1.js', siteId: input.siteId, demo: input.noindex }
       : null,
     privacyNoticeUrl: '/privacy-notice',
   }

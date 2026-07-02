@@ -1,3 +1,4 @@
+import type { BusinessFacts } from './facts'
 import type { SiteSpec } from './site-spec'
 import { TRADE_SCHEMA_ORG_TYPE } from './trades'
 
@@ -31,6 +32,40 @@ export function buildJsonLd(spec: SiteSpec, options: { url?: string } = {}): str
       itemListElement: services.items.map((item) => ({
         '@type': 'Offer',
         itemOffered: { '@type': 'Service', name: item.title, description: item.description },
+      })),
+    }
+  }
+  return JSON.stringify(data)
+}
+
+/**
+ * Same LocalBusiness JSON-LD built straight from the facts sheet — the
+ * html-design-system render path has no SiteSpec. Identical DMCC constraint:
+ * never emits aggregateRating/review.
+ */
+export function buildJsonLdFromFacts(facts: BusinessFacts, options: { url?: string } = {}): string {
+  const data: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': TRADE_SCHEMA_ORG_TYPE[facts.trade],
+    name: facts.businessName,
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: facts.town,
+      addressCountry: 'GB',
+    },
+  }
+  if (facts.phone) data.telephone = facts.phone.value
+  if (facts.email) data.email = facts.email.value
+  if (options.url) data.url = options.url
+  const areas = facts.serviceAreas.length > 0 ? facts.serviceAreas : [facts.town]
+  data.areaServed = areas.map((name) => ({ '@type': 'Place', name }))
+  if (facts.services.length > 0) {
+    data.hasOfferCatalog = {
+      '@type': 'OfferCatalog',
+      name: 'Services',
+      itemListElement: facts.services.map((service) => ({
+        '@type': 'Offer',
+        itemOffered: { '@type': 'Service', name: service.value },
       })),
     }
   }

@@ -47,6 +47,13 @@ export const stylePresetSchema = z.object({
   imageryPool: z.string().min(2).max(64),
   tone: z.enum(['friendly', 'professional', 'premium', 'no-nonsense']),
   status: z.enum(['active', 'draft', 'retired']).default('active'),
+  /**
+   * 'component' = the legacy React template families; 'html' = an uploaded
+   * HTML design system (skeleton + fresh per-business content).
+   */
+  kind: z.enum(['component', 'html']).default('component'),
+  /** Required when kind === 'html' — the ingested design_templates row. */
+  designTemplateId: z.string().uuid().nullable().default(null),
 })
 
 export type StylePreset = z.infer<typeof stylePresetSchema>

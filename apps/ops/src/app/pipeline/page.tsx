@@ -10,7 +10,8 @@ import {
 import { listActivePresets } from '@tradies/engine'
 import { TRADES } from '@tradies/site-spec'
 import { getDb } from '@/lib/db'
-import { previewUrl } from '@/lib/preview-url'
+import { operatorPreviewUrl } from '@/lib/preview-url'
+import { previewEngagement } from '@/lib/queries'
 import { FilterBar } from './filter-bar'
 import { NewProspectDialog } from './new-prospect-dialog'
 import { PipelineTable, type PipelineRow } from './pipeline-table'
@@ -69,6 +70,11 @@ export default async function PipelinePage({
   const presets = await listActivePresets(db)
   const styleKeys = [...new Set(presets.map((p) => p.row.styleKey))].sort()
 
+  const engagement = await previewEngagement(
+    db,
+    rows.map(({ prospect }) => prospect.id),
+  )
+
   const data: PipelineRow[] = rows.map(({ prospect, slug }) => ({
     id: prospect.id,
     name: prospect.businessName ?? '(unnamed)',
@@ -79,7 +85,9 @@ export default async function PipelinePage({
     entityType: prospect.entityType,
     status: prospect.status,
     slug,
-    previewHref: slug ? previewUrl(slug) : null,
+    previewHref: slug ? operatorPreviewUrl(slug) : null,
+    visits: engagement.get(prospect.id)?.visits ?? 0,
+    devices: engagement.get(prospect.id)?.devices ?? 0,
     costMicroGbp: costByProspect.get(prospect.id) ?? 0,
     createdAt: prospect.createdAt.toISOString(),
   }))

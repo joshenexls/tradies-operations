@@ -5,11 +5,12 @@ import {
   prospectToFacts,
   presetFromRow,
   resolveActivePreset,
+  resolveContentDocGeneratorFromEnv,
   resolveCostRatesFromEnv,
   resolveGeneratorFromEnv,
   type GenerateSiteVersionResult,
 } from '@tradies/engine'
-import type { SiteSpecGenerator } from '@tradies/llm'
+import type { ContentDocGenerator, SiteSpecGenerator } from '@tradies/llm'
 import { stylePresets } from '@tradies/db'
 
 /** Pipeline wrapper around the shared engine — same path as ops/CLI. */
@@ -21,6 +22,7 @@ export async function generateSiteSpecStep(
     stylePresetId?: string
     feedback?: string
     generator?: SiteSpecGenerator
+    contentDocGenerator?: ContentDocGenerator
   },
 ): Promise<GenerateSiteVersionResult> {
   const [prospect] = await db
@@ -56,6 +58,7 @@ export async function generateSiteSpecStep(
   const result = await generateSiteVersion({
     db,
     generator: input.generator ?? resolveGeneratorFromEnv(),
+    contentDocGenerator: input.contentDocGenerator ?? resolveContentDocGeneratorFromEnv(),
     prospectId: prospect.id,
     facts: prospectToFacts(prospect),
     preset,

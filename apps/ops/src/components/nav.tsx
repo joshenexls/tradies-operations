@@ -1,32 +1,23 @@
-'use client'
+import { count, eq } from 'drizzle-orm'
+import { inboxThreads } from '@tradies/db/schema'
+import { getDb } from '@/lib/db'
+import { NavLinks } from './nav-links'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-
-const LINKS = [
-  { href: '/pipeline', label: 'Pipeline' },
-  { href: '/review', label: 'Review batches' },
-  { href: '/library', label: 'Library' },
-] as const
-
-export function Nav() {
-  const pathname = usePathname()
-  return (
-    <nav className="flex items-center gap-1 text-sm">
-      {LINKS.map(({ href, label }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`)
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
-              active ? 'bg-indigo-50 text-indigo-700' : 'text-zinc-600 hover:bg-zinc-100'
-            }`}
-          >
-            {label}
-          </Link>
-        )
-      })}
-    </nav>
-  )
+/**
+ * Server shell for the nav: fetches the unread (needs_reply) inbox count so
+ * the badge is live on every page load, then defers to the client component
+ * for pathname-aware highlighting.
+ */
+export async function Nav() {
+  let inboxCount = 0
+  try {
+    const [row] = await getDb()
+      .select({ value: count() })
+      .from(inboxThreads)
+      .where(eq(inboxThreads.status, 'needs_reply'))
+    inboxCount = row?.value ?? 0
+  } catch {
+    // the nav must never take the shell down (e.g. building without a DB)
+  }
+  return <NavLinks inboxCount={inboxCount} />
 }

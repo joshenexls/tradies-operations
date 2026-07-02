@@ -1,0 +1,47 @@
+// Cloudflare Workers config for the ops desk (deployed via
+// `pnpm --filter @tradies/ops build:cf` then `wrangler deploy`).
+// Deploy-day runbook: docs/deploy-cloudflare.md
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tradies-ops",
+  "main": ".open-next/worker.js",
+  // Keep <= the workerd version pinned by the wrangler devDependency
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "r2_buckets": [
+    {
+      // OpenNext incremental cache (open-next.config.ts) — create before deploy:
+      //   wrangler r2 bucket create tradies-ops-inc-cache
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "tradies-ops-inc-cache"
+    }
+  ],
+  // Non-secret runtime config. Secrets are NOT vars — set them with
+  // `wrangler secret put <NAME>` after the first deploy:
+  //   wrangler secret put OPS_AUTH_PASS       # Basic auth password (REQUIRED — dev default is not a credential)
+  //   wrangler secret put DATABASE_URL        # Supabase POOLED string (port 6543)
+  //   wrangler secret put ANTHROPIC_API_KEY   # required when SITE_GENERATOR=anthropic
+  //   wrangler secret put TRIGGER_SECRET_KEY  # Trigger.dev (pipeline waitpoints/dispatch)
+  "vars": {
+    "OPS_AUTH_USER": "ops",
+    "SITE_GENERATOR": "anthropic",
+    "ANTHROPIC_MODEL": "claude-sonnet-5",
+    "PREVIEW_URL_PATTERN": "https://{slug}.app.tradies.co.uk",
+    "OPERATOR_BRAND_NAME": "Tradies Studio",
+    "OPERATOR_LEGAL_NAME": "Tradies Studio Ltd",
+    "OPERATOR_CONTACT_EMAIL": "privacy@tradies.co.uk"
+  },
+  // Single-host route — enable once the founder wires DNS (see
+  // docs/deploy-cloudflare.md §DNS). Custom domain alternative:
+  // "routes": [
+  //   { "pattern": "outreach.tradies.co.uk/*", "zone_name": "tradies.co.uk" }
+  // ],
+  // or: "routes": [{ "pattern": "outreach.tradies.co.uk", "custom_domain": true }],
+  "observability": {
+    "enabled": true
+  }
+}

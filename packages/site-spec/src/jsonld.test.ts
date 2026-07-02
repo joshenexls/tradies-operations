@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildJsonLd } from './jsonld'
+import { buildJsonLd, buildJsonLdFromFacts } from './jsonld'
 import { makeValidSpec } from './test-helpers'
 
 describe('buildJsonLd', () => {
@@ -14,6 +14,27 @@ describe('buildJsonLd', () => {
 
   it('never emits ratings or reviews (DMCC)', () => {
     const raw = buildJsonLd(makeValidSpec())
+    expect(raw).not.toContain('aggregateRating')
+    expect(raw).not.toContain('"review"')
+    expect(raw).not.toContain('ratingValue')
+  })
+})
+
+describe('buildJsonLdFromFacts', () => {
+  const facts = makeValidSpec().facts
+
+  it('emits the same LocalBusiness shape straight from the facts sheet', () => {
+    const json = JSON.parse(buildJsonLdFromFacts(facts, { url: 'https://example.test' }))
+    expect(json['@type']).toBe('Plumber')
+    expect(json.name).toBe(facts.businessName)
+    expect(json.url).toBe('https://example.test')
+    expect(json.telephone).toBe(facts.phone?.value)
+    expect(json.areaServed.length).toBeGreaterThan(0)
+    expect(json.hasOfferCatalog.itemListElement.length).toBe(facts.services.length)
+  })
+
+  it('never emits ratings or reviews (DMCC)', () => {
+    const raw = buildJsonLdFromFacts(facts)
     expect(raw).not.toContain('aggregateRating')
     expect(raw).not.toContain('"review"')
     expect(raw).not.toContain('ratingValue')

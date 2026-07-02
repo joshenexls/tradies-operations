@@ -1,11 +1,19 @@
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { events, prospects, siteSpecs, sites } from '@tradies/db'
+import { designTemplates, events, prospects, siteSpecs, sites } from '@tradies/db'
 import { createTestDb, type TestDb } from '@tradies/db/test-harness'
 import { getFixture } from '@tradies/fixtures'
-import { FixtureLLM, type GenerationInput, type SiteSpecGenerator } from '@tradies/llm'
+import {
+  FixtureContentDocGenerator,
+  FixtureLLM,
+  type ContentDocGenerationInput,
+  type ContentDocGenerator,
+  type GenerationInput,
+  type SiteSpecGenerator,
+} from '@tradies/llm'
 import { SEED_STYLE_PRESETS } from '@tradies/templates'
-import { resolveStylePreset } from '@tradies/site-spec'
+import { parseStoredSpec, resolveStylePreset, type ContentDoc } from '@tradies/site-spec'
+import { seedDesignTemplates } from './design-templates'
 import { GenerationFailedError, generateSiteVersion } from './generate-site-version'
 import { prospectToFacts } from './facts'
 import { resolveActivePreset, seedStylePresets } from './presets'
@@ -183,5 +191,146 @@ describe('generateSiteVersion', () => {
     })
     expect(costs).toHaveLength(2)
     expect(costs.every((c) => c.category === 'llm')).toBe(true)
+  })
+})
+
+/** Wraps FixtureContentDocGenerator but corrupts the first N attempts. */
+class FlakyContentDocGenerator implements ContentDocGenerator {
+  constructor(
+    private badAttempts: number,
+    private corrupt: (candidate: ContentDoc) => void,
+  ) {}
+  attempts = 0
+  feedbacks: (string | undefined)[] = []
+  private inner = new FixtureContentDocGenerator()
+
+  async generateContentDoc(input: ContentDocGenerationInput) {
+    this.attempts++
+    this.feedbacks.push(input.feedback)
+    const result = await this.inner.generateContentDoc({ ...input, feedback: undefined })
+    if (this.attempts <= this.badAttempts) {
+      const candidate = structuredClone(result.candidate) as ContentDoc
+      this.corrupt(candidate)
+      return { ...result, candidate }
+    }
+    return result
+  }
+}
+
+describe('generateSiteVersion (html design systems)', () => {
+  let db: TestDb
+  beforeEach(async () => {
+    db = await createTestDb()
+    await seedDesignTemplates(db)
+  })
+
+  async function htmlPreset(styleKey = 'craftsman-dark') {
+    const resolved = await resolveActivePreset(db, styleKey, fixture.trade)
+    if (!resolved) throw new Error(`no html preset for ${styleKey}`)
+    return resolved
+  }
+
+  it('generates, validates and persists an html-kind spec', async () => {
+    const prospect = await insertProspect(db)
+    const { preset: html, presetId } = await htmlPreset()
+    const result = await generateSiteVersion({
+      db,
+      generator: new FixtureLLM(),
+      contentDocGenerator: new FixtureContentDocGenerator(),
+      prospectId: prospect.id,
+      facts: prospectToFacts(prospect),
+      preset: html,
+      stylePresetId: presetId,
+      costRates: { inputMicroGbp: 2, outputMicroGbp: 10 },
+    })
+
+    expect(result.stored.kind).toBe('html')
+    expect(result.attempts).toBe(1)
+    expect(result.reports.fact.ok).toBe(true)
+
+    const [row] = await db.select().from(siteSpecs).where(eq(siteSpecs.prospectId, prospect.id))
+    expect(row!.templateId).toBe('html')
+    expect(row!.designTemplateId).toBe(html.designTemplateId)
+    expect(row!.validationReport?.fact.ok).toBe(true)
+
+    // the stored jsonb round-trips through the discriminating parser
+    const stored = parseStoredSpec(row!.spec)
+    expect(stored.kind).toBe('html')
+    if (stored.kind !== 'html') throw new Error('unreachable')
+    expect(stored.doc.designTemplateId).toBe(html.designTemplateId)
+    expect(Object.keys(stored.doc.contentDoc.slots).length).toBeGreaterThan(0)
+
+    const [site] = await db.select().from(sites).where(eq(sites.prospectId, prospect.id))
+    expect(site?.currentSpecVersion).toBe(1)
+    expect(site?.noindex).toBe(true)
+  })
+
+  it('refuses to run without a contentDocGenerator', async () => {
+    const prospect = await insertProspect(db)
+    const { preset: html } = await htmlPreset()
+    await expect(
+      generateSiteVersion({
+        db,
+        generator: new FixtureLLM(),
+        prospectId: prospect.id,
+        facts: prospectToFacts(prospect),
+        preset: html,
+      }),
+    ).rejects.toThrow(/contentDocGenerator/)
+  })
+
+  it('FACT-GUARD repairs a content doc carrying fabricated review content', async () => {
+    const prospect = await insertProspect(db)
+    const { preset: html, presetId } = await htmlPreset()
+    const [template] = await db
+      .select()
+      .from(designTemplates)
+      .where(eq(designTemplates.id, html.designTemplateId!))
+    const paragraph = template!.slotManifest!.slots.find(
+      (s) => s.kind === 'paragraph' && s.maxLength >= 40,
+    )
+    expect(paragraph).toBeDefined()
+
+    const generator = new FlakyContentDocGenerator(1, (candidate) => {
+      candidate.slots[paragraph!.id] = 'Rated 5 stars by hundreds of happy customers.'
+    })
+    const result = await generateSiteVersion({
+      db,
+      generator: new FixtureLLM(),
+      contentDocGenerator: generator,
+      prospectId: prospect.id,
+      facts: prospectToFacts(prospect),
+      preset: html,
+      stylePresetId: presetId,
+    })
+    expect(result.attempts).toBe(2)
+    expect(generator.feedbacks[1]).toContain('facts')
+    expect(generator.feedbacks[1]).toContain(paragraph!.id)
+  })
+
+  it('gives up after maxAttempts with a generation_failed event and no spec row', async () => {
+    const prospect = await insertProspect(db)
+    const { preset: html, presetId } = await htmlPreset()
+    const generator = new FlakyContentDocGenerator(99, (candidate) => {
+      const first = Object.keys(candidate.slots)[0]!
+      candidate.slots[first] = ''
+    })
+    await expect(
+      generateSiteVersion({
+        db,
+        generator: new FixtureLLM(),
+        contentDocGenerator: generator,
+        prospectId: prospect.id,
+        facts: prospectToFacts(prospect),
+        preset: html,
+        stylePresetId: presetId,
+        maxAttempts: 3,
+      }),
+    ).rejects.toBeInstanceOf(GenerationFailedError)
+    expect(generator.attempts).toBe(3)
+    const specRows = await db.select().from(siteSpecs).where(eq(siteSpecs.prospectId, prospect.id))
+    expect(specRows).toHaveLength(0)
+    const eventRows = await db.select().from(events).where(eq(events.prospectId, prospect.id))
+    expect(eventRows.some((e) => e.type === 'generation_failed')).toBe(true)
   })
 })

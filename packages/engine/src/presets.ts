@@ -24,6 +24,8 @@ export function presetFromRow(row: StylePresetRow): StylePreset {
     imageryPool: row.imageryPool,
     tone: row.tone,
     status: row.status,
+    kind: row.kind,
+    designTemplateId: row.designTemplateId,
   })
 }
 

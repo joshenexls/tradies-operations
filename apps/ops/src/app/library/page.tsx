@@ -51,12 +51,20 @@ export default async function LibraryPage() {
             Curated systems the generator must stay inside — trade specialisations win over generic.
           </p>
         </div>
-        <Link
-          href="/library/new"
-          className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
-        >
-          New system
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/library/upload"
+            className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
+          >
+            Upload design system
+          </Link>
+          <Link
+            href="/library/new"
+            className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+          >
+            New system
+          </Link>
+        </div>
       </div>
 
       {[...groups.entries()].map(([styleKey, presets]) => (
@@ -70,6 +78,9 @@ export default async function LibraryPage() {
                     <div>
                       <h3 className="text-sm font-semibold text-zinc-900">{preset.name}</h3>
                       <div className="mt-1 flex items-center gap-1.5">
+                        <Badge tone={preset.kind === 'html' ? 'indigo' : 'grey'}>
+                          {preset.kind === 'html' ? 'HTML system' : 'Component'}
+                        </Badge>
                         <Badge tone={preset.trade ? 'blue' : 'grey'}>
                           {preset.trade ?? 'generic'}
                         </Badge>
@@ -92,13 +103,23 @@ export default async function LibraryPage() {
                     <dd className="font-mono">{preset.imageryPool ?? '—'}</dd>
                   </dl>
                   <div className="flex items-center justify-between border-t border-zinc-100 pt-2">
-                    <Link
-                      href={`/library/${preset.id}`}
-                      aria-label={`Edit ${preset.name}`}
-                      className="text-sm font-medium text-indigo-600 hover:underline"
-                    >
-                      Edit
-                    </Link>
+                    {preset.kind === 'html' && preset.designTemplateId ? (
+                      <Link
+                        href={`/library/templates/${preset.designTemplateId}`}
+                        aria-label={`Details for ${preset.name}`}
+                        className="text-sm font-medium text-indigo-600 hover:underline"
+                      >
+                        Details
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/library/${preset.id}`}
+                        aria-label={`Edit ${preset.name}`}
+                        className="text-sm font-medium text-indigo-600 hover:underline"
+                      >
+                        Edit
+                      </Link>
+                    )}
                     <CardActions presetId={preset.id} status={preset.status} />
                   </div>
                 </CardBody>

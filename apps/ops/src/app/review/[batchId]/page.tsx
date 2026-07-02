@@ -1,12 +1,19 @@
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import type { Prospect, ReviewRequestRow, SiteRow, SiteSpecRow } from '@tradies/db'
-import { prospects, reviewBatches, reviewRequests, siteSpecs, sites } from '@tradies/db/schema'
+import type { PitchRow, Prospect, ReviewRequestRow, SiteRow, SiteSpecRow } from '@tradies/db'
+import {
+  pitches,
+  prospects,
+  reviewBatches,
+  reviewRequests,
+  siteSpecs,
+  sites,
+} from '@tradies/db/schema'
 import { listActivePresets } from '@tradies/engine'
 import { getDb } from '@/lib/db'
 import { formatDate, relativeTime } from '@/lib/format'
-import { previewUrl } from '@/lib/preview-url'
+import { operatorPreviewUrl } from '@/lib/preview-url'
 import { latestEntityNote } from '@/lib/queries'
 import { isUuid } from '@/lib/uuid'
 import { EntityControl } from '@/components/entity-control'
@@ -14,6 +21,7 @@ import { FactsPanel } from '@/components/facts-panel'
 import { Badge, entityTone, segmentTone, statusTone } from '@/components/ui/badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { DecisionForm, type PresetOption } from './decision-form'
+import { PitchPanel } from './pitch-panel'
 import { PreviewFrame } from './preview-frame'
 
 export const dynamic = 'force-dynamic'
@@ -23,6 +31,7 @@ type CardData = {
   prospect: Prospect
   site: SiteRow | undefined
   specRow: SiteSpecRow | undefined
+  pitch: PitchRow | undefined
   latestNote: string | null
 }
 
@@ -75,11 +84,18 @@ export default async function ReviewBatchPage({
         )
         .limit(1)
     }
+    const [pitch] = await db
+      .select()
+      .from(pitches)
+      .where(eq(pitches.prospectId, prospect.id))
+      .orderBy(desc(pitches.version))
+      .limit(1)
     cards.push({
       request,
       prospect,
       site,
       specRow,
+      pitch,
       latestNote: await latestEntityNote(db, prospect.id),
     })
   }
@@ -117,7 +133,7 @@ export default async function ReviewBatchPage({
         </Card>
       ) : null}
 
-      {pending.map(({ request, prospect, site, specRow, latestNote }) => (
+      {pending.map(({ request, prospect, site, specRow, pitch, latestNote }) => (
         <Card key={request.id} data-testid="review-card">
           <CardHeader
             title={
@@ -153,7 +169,7 @@ export default async function ReviewBatchPage({
           <CardBody className="grid gap-5 lg:grid-cols-[1.15fr_1fr]">
             {site ? (
               <PreviewFrame
-                src={previewUrl(site.slug)}
+                src={operatorPreviewUrl(site.slug)}
                 title={`Preview of ${prospect.businessName ?? site.slug}`}
               />
             ) : (
@@ -184,9 +200,14 @@ export default async function ReviewBatchPage({
                 presets={presetOptions}
                 currentPresetId={specRow?.stylePresetId ?? null}
               />
-              <div className="rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-400">
-                Pitch preview — arrives in Phase 5 (outreach)
-              </div>
+              <PitchPanel
+                prospectId={prospect.id}
+                pitch={
+                  pitch
+                    ? { version: pitch.version, subject: pitch.subject, body: pitch.body }
+                    : null
+                }
+              />
             </div>
           </CardBody>
         </Card>

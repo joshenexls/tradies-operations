@@ -13,8 +13,8 @@ import {
 import { listActivePresets } from '@tradies/engine'
 import { getDb } from '@/lib/db'
 import { formatDate, formatMicroGbp, relativeTime } from '@/lib/format'
-import { previewUrl } from '@/lib/preview-url'
-import { latestEntityNote } from '@/lib/queries'
+import { operatorPreviewUrl } from '@/lib/preview-url'
+import { latestEntityNote, previewEngagement } from '@/lib/queries'
 import { isUuid } from '@/lib/uuid'
 import { EntityControl } from '@/components/entity-control'
 import { Badge, entityTone, segmentTone, statusTone } from '@/components/ui/badge'
@@ -74,6 +74,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
   const note = await latestEntityNote(db, id)
   const currentSpec = specs.find((s) => s.version === site?.currentSpecVersion)
   const totalCost = costs.reduce((sum, cost) => sum + (cost.amountMicroGbp ?? 0), 0)
+  const engagement = (await previewEngagement(db, [id])).get(id)
 
   return (
     <div className="space-y-4">
@@ -99,7 +100,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
           <p className="mt-1 space-x-3 text-sm">
             {site ? (
               <a
-                href={previewUrl(site.slug)}
+                href={operatorPreviewUrl(site.slug)}
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium text-indigo-600 hover:underline"
@@ -109,6 +110,21 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
             ) : (
               <span className="text-zinc-400">No site yet</span>
             )}
+            {site ? (
+              engagement && engagement.visits > 0 ? (
+                <span className="font-medium text-emerald-700" data-testid="engagement">
+                  Opened {engagement.visits}×
+                  {engagement.devices > 0
+                    ? ` from ${engagement.devices} device${engagement.devices === 1 ? '' : 's'}`
+                    : ''}
+                  {engagement.lastVisitAt ? `, last ${relativeTime(engagement.lastVisitAt)}` : ''}
+                </span>
+              ) : (
+                <span className="text-zinc-400" data-testid="engagement">
+                  Not opened yet
+                </span>
+              )
+            ) : null}
             <span className="text-zinc-400">Portal — arrives in Phase 6</span>
           </p>
         </div>

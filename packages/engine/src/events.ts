@@ -10,6 +10,7 @@ export const EVENT_TYPES = {
   prospectEnriched: 'prospect_enriched',
   websiteScored: 'website_scored',
   qaRendered: 'qa_rendered',
+  pitchGenerated: 'pitch_generated',
   outreachDryRun: 'outreach_dry_run',
   outreachBlocked: 'outreach_blocked',
   previewExpired: 'preview_expired',

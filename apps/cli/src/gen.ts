@@ -12,18 +12,22 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
+import { eq } from 'drizzle-orm'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createPgliteDb } from '@tradies/db'
 import { migrateDb } from '@tradies/db/migrate'
-import { prospects } from '@tradies/db/schema'
+import { createPgliteDb } from '@tradies/db/pglite'
+import { designTemplates, prospects } from '@tradies/db/schema'
 import {
   GenerationFailedError,
   generateSiteVersion,
   resolveActivePreset,
+  resolveContentDocGeneratorFromEnv,
   resolveCostRatesFromEnv,
   resolveGeneratorFromEnv,
+  seedDesignTemplates,
   seedStylePresets,
 } from '@tradies/engine'
+import { renderHtmlSite } from '@tradies/html-templates'
 import { tradeSchema, type BusinessFacts } from '@tradies/site-spec'
 import { renderSite, type TemplateContext } from '@tradies/templates'
 
@@ -79,6 +83,7 @@ async function main() {
   const db = createPgliteDb(process.env.PGLITE_DIR ?? '../sites/.pglite/dev')
   await migrateDb(db)
   await seedStylePresets(db)
+  await seedDesignTemplates(db)
 
   const styleKey = values.style ?? 'modern'
   const resolved = await resolveActivePreset(db, styleKey, trade)
@@ -109,6 +114,7 @@ async function main() {
     result = await generateSiteVersion({
       db,
       generator: resolveGeneratorFromEnv(),
+      contentDocGenerator: resolveContentDocGeneratorFromEnv(),
       prospectId: prospect.id,
       facts,
       preset,
@@ -119,20 +125,50 @@ async function main() {
     if (err instanceof GenerationFailedError) fail(err.message)
     throw err
   }
-  const { spec, slug } = result
+  const { stored, slug } = result
 
-  const ctx: TemplateContext = {
-    resolveImage: (ref) => ({
-      src: `https://placehold.local/pool/${ref.pool}/${ref.index}`,
-      width: 1600,
-      height: 1000,
-    }),
-    leadFormAction: '#lead-form-disabled-in-static-preview',
-    placeId: null,
-    previewBanner: { operatorName: 'Tradies Studio' },
-    privacyNoticeUrl: '#',
+  let html: string
+  let summary: string
+  if (stored.kind === 'component') {
+    const spec = stored.spec
+    const ctx: TemplateContext = {
+      resolveImage: (ref) => ({
+        src: `https://placehold.local/pool/${ref.pool}/${ref.index}`,
+        width: 1600,
+        height: 1000,
+      }),
+      leadFormAction: '#lead-form-disabled-in-static-preview',
+      placeId: null,
+      previewBanner: { operatorName: 'Tradies Studio' },
+      privacyNoticeUrl: '#',
+    }
+    html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${spec.seo.title}</title></head><body>${renderToStaticMarkup(renderSite(spec, ctx))}</body></html>`
+    summary = `sections: ${spec.sections.map((s) => `${s.kind}/${s.variant}`).join(', ')}`
+  } else {
+    const [template] = await db
+      .select()
+      .from(designTemplates)
+      .where(eq(designTemplates.id, stored.doc.designTemplateId))
+      .limit(1)
+    if (!template?.annotatedHtml || !template.slotManifest) {
+      fail(`design template ${stored.doc.designTemplateId} is missing its ingested skeleton`)
+    }
+    const rendered = renderHtmlSite({
+      annotatedHtml: template.annotatedHtml,
+      manifest: template.slotManifest,
+      doc: stored.doc.contentDoc,
+      ctx: {
+        resolveImage: (ref) => ({ src: `https://placehold.local/pool/${ref.pool}/${ref.index}` }),
+        leadFormAction: '#lead-form-disabled-in-static-preview',
+        previewBanner: { operatorName: 'Tradies Studio', businessName: facts.businessName },
+      },
+    })
+    const bodyAttrs = Object.entries(rendered.bodyAttrs)
+      .map(([k, v]) => ` ${k}="${v.replaceAll('"', '&quot;')}"`)
+      .join('')
+    html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${rendered.title}</title>${rendered.headHtml}</head><body${bodyAttrs}>${rendered.bodyHtml}</body></html>`
+    summary = `system:   ${preset.styleKey} (html design system, ${template.slotManifest.slots.length} slots)`
   }
-  const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${spec.seo.title}</title></head><body>${renderToStaticMarkup(renderSite(spec, ctx))}</body></html>`
   await mkdir('out/preview', { recursive: true })
   const htmlPath = `out/preview/${slug}.html`
   await writeFile(htmlPath, html)
@@ -144,8 +180,8 @@ async function main() {
   console.log(
     `  dev URL:  http://${slug}.localhost:3000  (start: pnpm --filter @tradies/sites dev)`,
   )
-  console.log(`  static:   apps/cli/${htmlPath}  (unstyled markup preview)`)
-  console.log(`  sections: ${spec.sections.map((s) => `${s.kind}/${s.variant}`).join(', ')}\n`)
+  console.log(`  static:   apps/cli/${htmlPath}`)
+  console.log(`  ${summary}\n`)
   process.exit(0)
 }
 

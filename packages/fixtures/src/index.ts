@@ -3,6 +3,7 @@ import { allProspectFixtures } from './prospects'
 import type { ProspectFixture, ProspectSegment } from './types'
 
 export * from './types'
+export * from './design-templates'
 export { allProspectFixtures }
 
 export function getFixture(key: string): ProspectFixture {

@@ -8,6 +8,11 @@ dist/
 out/
 .open-next/
 .wrangler/
+*.tsbuildinfo
+
+# generated local data
+pool-out/
+.raw-mail/
 
 # env & secrets
 .env

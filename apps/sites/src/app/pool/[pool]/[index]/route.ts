@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 
 /**
- * Phase 1 imagery: deterministic, offline SVG placeholders per (pool, index).
- * Phase 4 replaces this with curated licensed photography served from R2 —
- * same URL shape, so specs and baselines survive the swap.
+ * Imagery per (pool, index) — one URL shape, two sources:
+ *
+ * - IMAGE_POOL_SOURCE=r2 (+ POOL_BASE_URL): 302 to curated licensed
+ *   photography on R2 at `${POOL_BASE_URL}/${pool}/${index}.jpg` (uploaded by
+ *   scripts/curate-pool.ts — see docs/deploy-cloudflare.md).
+ * - default 'svg': deterministic, offline SVG placeholders (byte-identical to
+ *   Phase 1, so specs and visual baselines survive the swap).
  */
 
 function hash(s: string): number {
@@ -20,6 +24,15 @@ export async function GET(
   { params }: { params: Promise<{ pool: string; index: string }> },
 ) {
   const { pool, index } = await params
+
+  const poolBaseUrl = process.env.POOL_BASE_URL
+  if (process.env.IMAGE_POOL_SOURCE === 'r2' && poolBaseUrl) {
+    return NextResponse.redirect(`${poolBaseUrl.replace(/\/+$/, '')}/${pool}/${index}.jpg`, {
+      status: 302,
+      headers: { 'Cache-Control': 'public, max-age=86400' },
+    })
+  }
+
   const seed = hash(`${pool}:${index}`)
   const hue = seed % 360
   const hue2 = (hue + 40) % 360

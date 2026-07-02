@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { stylePresets } from '@tradies/db/schema'
 import { allProspectFixtures } from '@tradies/fixtures'
 import { getDb } from '@/lib/db'
@@ -24,6 +24,11 @@ export default async function EditPresetPage({
   const db = getDb()
   const [row] = await db.select().from(stylePresets).where(eq(stylePresets.id, presetId)).limit(1)
   if (!row) notFound()
+  // html-kind presets are managed from their ingested template's detail page
+  // (skeleton, manifest, reports) — the component-preset form doesn't apply
+  if (row.kind === 'html' && row.designTemplateId) {
+    redirect(`/library/templates/${row.designTemplateId}`)
+  }
 
   const rawFixture = (await searchParams).fixture
   const requested = Array.isArray(rawFixture) ? rawFixture[0] : rawFixture

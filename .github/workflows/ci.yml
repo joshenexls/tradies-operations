@@ -40,6 +40,11 @@ jobs:
       - run: pnpm --filter @tradies/compliance test
       - run: pnpm --filter @tradies/db test
       - run: pnpm --filter @tradies/site-spec test
+      # sanitizer + testimonial-strip + review-scan gates for uploaded HTML
+      - run: pnpm --filter @tradies/html-templates test
+      # FACT-GUARD repair loops (component spec, content doc, pitch) + PECR dispatch gates
+      - run: pnpm --filter @tradies/engine test
+      - run: pnpm --filter @tradies/jobs test
 
   ops-smoke:
     # Behavioral e2e for the operator desk (blocking — asserts flows, not pixels)

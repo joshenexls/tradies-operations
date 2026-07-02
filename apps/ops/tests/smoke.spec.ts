@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test'
 
 /**
  * Smoke pass over the four ops screens against the seeded fixture DB
- * (20 prospects, 6 seed design systems, one 'Fixture batch' of 5 pending
- * site reviews). Serial: the approve/classify tests mutate shared state.
+ * (20 prospects, 6 component + 3 html seed design systems, one 'Fixture
+ * batch' of 5 pending site reviews). Serial: the approve/classify tests
+ * mutate shared state.
  */
 
 test.describe.configure({ mode: 'serial' })
@@ -21,9 +22,10 @@ test('pipeline lists the 20 fixture prospects and the trade filter narrows them'
   await expect(page.getByRole('link', { name: 'Swift Flow Plumbing' })).toBeVisible()
 })
 
-test('library shows the 6 seed systems grouped and renders a live sample', async ({ page }) => {
+test('library shows the 9 seed systems grouped and renders a live sample', async ({ page }) => {
   await page.goto('/library')
-  await expect(page.getByTestId('preset-card')).toHaveCount(6)
+  // 6 component presets + 3 seeded html design systems
+  await expect(page.getByTestId('preset-card')).toHaveCount(9)
 
   await page.getByRole('link', { name: 'Edit Modern — Plumbing' }).click()
   // default sample fixture is the first plumber (Swift Flow Plumbing) and the

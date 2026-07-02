@@ -5,27 +5,30 @@ good website for each from evidenced business facts, hosts it as a preview on
 our domain, pitches the business by compliant outreach, and converts them to a
 £19.99/mo subscription (site + AI chatbot + leads inbox + ongoing edits).
 
-**Status: Stage A + B built — ops desk, engine, and the discovery pipeline.**
-Everything runs offline by default (PGlite + fixtures + a deterministic
-generator). Real services (Supabase, Claude, Trigger.dev, Apify, Firecrawl)
-connect via env keys with no code changes — see `.env.example`.
+**Status: Phases 1–5 built — ops desk, engine, discovery pipeline, HTML
+design systems + chatbot, hosting configs, and outreach (dry-run).**
+Everything runs offline by default (PGlite + fixtures + deterministic
+generators). Real services (Supabase, Claude, Trigger.dev, Apify, Firecrawl,
+Smartlead, Resend, Cloudflare) connect via env keys with no code changes —
+see `.env.example`; deployment runbook in `docs/deploy-cloudflare.md`.
 
 ## Layout
 
-| Package / app           | What it is                                                                                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/site-spec`    | The contract: Zod SiteSpec + StylePreset (design systems) + **FACT-GUARD** (blocks fabricated reviews/accreditations/history — DMCC) + JSON-LD |
-| `packages/templates`    | Hand-crafted design system: 3 template families (classic/modern/bold) × section variants, seed style presets, pure `renderSite(spec, ctx)`     |
-| `packages/engine`       | THE generation path (used by CLI, seed, ops, jobs): generator → validators → repair loop ≤3 → persist spec/site/events/costs                   |
-| `packages/db`           | Drizzle schema (incl. the PECR CHECK constraint), migrations, PGlite harness, env-selected Postgres/PGlite client                              |
-| `packages/compliance`   | PECR/ICO gates: corporate-only cold email, global suppression, TPS validity, legal footer — **no SMS channel exists by design**                |
-| `packages/llm`          | Generator + facts-extractor interfaces, deterministic fixtures, versioned prompts, Anthropic clients, `verifyExtractedFacts` evidence check    |
-| `packages/fixtures`     | 20 hand-written UK prospect fixtures + fake provider payloads                                                                                  |
-| `packages/integrations` | Provider interfaces + fixture/real adapters: Apify Google Maps discovery, Firecrawl v2, PSI v5, Haiku vision judge                             |
-| `apps/sites`            | Multi-tenant renderer: `{slug}.app.tradies.co.uk` (dev: `{slug}.localhost:3000`), noindex middleware choke point, lead capture                 |
-| `apps/ops`              | Operator desk (`outreach.tradies.co.uk`): pipeline board, review queue, prospect detail, design library. Basic auth.                           |
-| `apps/jobs`             | Trigger.dev v4 pipeline: discover → enrich → score → generate → QA → human gate (wait tokens) → outreach stub; daily preview expiry            |
-| `apps/cli`              | Manual mode: `pnpm gen --name "..." --trade plumber --town Leeds --style modern`                                                               |
+| Package / app             | What it is                                                                                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/site-spec`      | The contract: Zod SiteSpec + StylePreset (design systems) + **FACT-GUARD** (blocks fabricated reviews/accreditations/history — DMCC) + JSON-LD |
+| `packages/templates`      | Hand-crafted design system: 3 template families (classic/modern/bold) × section variants, seed style presets, pure `renderSite(spec, ctx)`     |
+| `packages/engine`         | THE generation path (used by CLI, seed, ops, jobs): generator → validators → repair loop ≤3 → persist spec/site/events/costs                   |
+| `packages/db`             | Drizzle schema (incl. the PECR CHECK constraint), migrations, PGlite harness, env-selected Postgres/PGlite client                              |
+| `packages/compliance`     | PECR/ICO gates: corporate-only cold email, global suppression, TPS validity, legal footer — **no SMS channel exists by design**                |
+| `packages/llm`            | Generator + facts-extractor interfaces, deterministic fixtures, versioned prompts, Anthropic clients, `verifyExtractedFacts` evidence check    |
+| `packages/fixtures`       | 20 hand-written UK prospect fixtures + 3 HTML design-system fixtures + fake provider payloads                                                  |
+| `packages/html-templates` | Uploaded-HTML machinery: deterministic sanitizer, annotation ops applier (LLM never rewrites markup), template validator, `renderHtmlSite`     |
+| `packages/integrations`   | Provider interfaces + fixture/real adapters: Apify Google Maps discovery, Firecrawl v2, PSI v5, Haiku vision judge, Smartlead, Resend          |
+| `apps/sites`              | Multi-tenant renderer: `{slug}.app.tradies.co.uk` (dev: `{slug}.localhost:3000`), noindex middleware choke point, lead capture                 |
+| `apps/ops`                | Operator desk (`outreach.tradies.co.uk`): pipeline board, review queue, prospect detail, design library. Basic auth.                           |
+| `apps/jobs`               | Trigger.dev v4 pipeline: discover → enrich → score → generate → QA → human gate (wait tokens) → outreach stub; daily preview expiry            |
+| `apps/cli`                | Manual mode: `pnpm gen --name "..." --trade plumber --town Leeds --style modern`                                                               |
 
 ## Quickstart
 
@@ -38,10 +41,37 @@ pnpm --filter @tradies/ops dev       # ops desk on http://localhost:3001 (Basic 
 pnpm gen --name "Smith Plumbing" --trade plumber --town Leeds   # manual mode
 ```
 
-Design systems ("modern", "heritage", "bold" — generic or trade-specialised)
-constrain every generation: the engine only fills copy and picks among the
-variants/palette/imagery a system allows. Curate them in the ops desk
-`/library` (DB-backed; seeds ship from `packages/templates/src/seed-presets.ts`).
+Design systems constrain every generation and come in two kinds, resolved
+system × trade (specialisation wins, generic falls back):
+
+- **Component** ("modern", "heritage", "bold"): the engine fills copy and
+  picks among the variants/palette/imagery the system allows.
+- **HTML** (uploaded in `/library` → Upload design system): a self-contained
+  lander becomes the pixel-fixed skeleton. Ingest sanitizes it (external
+  scripts/analytics/iframes stripped; the keyless Google Maps embed is the
+  one allowed exception), Claude marks slots via edit-ops applied
+  deterministically (it can never rewrite the markup), dummy testimonials are
+  stripped (DMCC), and per business Claude writes all content fresh into the
+  manifest's slots — schema-enforced at emission, FACT-GUARD-checked after.
+  Ships with 3 fixture systems (`craftsman-dark`, `coastal-light`,
+  `bold-mono`), seeded active: `pnpm gen --style craftsman-dark ...` works
+  offline.
+
+Every generated site carries the lean chatbot widget (`/embed/v1.js` →
+`POST /api/chat`): Claude Haiku answering only from the prospect's facts
+sheet, capturing name/phone/email into the same `leads` table as the form,
+demo-labelled on previews, per-session/site/IP rate limits (`CHAT_RATE_*`).
+Preview visits are logged hashed-only (`PREVIEW_VISIT_SALT`) and surface as
+"Opened N× from M devices" engagement on the pipeline board and prospect
+page; operator opens (ops links carry `?op=1`) are excluded.
+
+Outreach (Phase 5) generates a pitch per prospect (FACT-GUARD-validated, no
+legal text — the footer is appended in code at dispatch), which the operator
+reviews next to the site. Dispatch is dry-run by default
+(`OUTREACH_DRY_RUN=1` → `outreach_messages` stop at `queued`); with a
+Smartlead key it pushes to a per-(city,trade) campaign and webhooks drive
+statuses, replies land in the ops `/inbox`, and `/u/[token]` one-click
+unsubscribe suppresses globally.
 
 ## Discovery (amended Phase 3)
 

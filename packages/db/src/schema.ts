@@ -18,8 +18,10 @@ import {
 import { TRADES } from '@tradies/site-spec'
 import type {
   BusinessFacts,
+  HtmlSpecDoc,
   SectionKind,
   SiteSpec,
+  SlotManifest,
   StylePreset,
   ValidationReport,
 } from '@tradies/site-spec'
@@ -63,6 +65,12 @@ export const prospectStatusEnum = pgEnum('prospect_status', [
 ])
 export const prospectSegmentEnum = pgEnum('prospect_segment', ['no_site', 'bad_site', 'fine'])
 export const stylePresetStatusEnum = pgEnum('style_preset_status', ['active', 'draft', 'retired'])
+export const stylePresetKindEnum = pgEnum('style_preset_kind', ['component', 'html'])
+export const designTemplateStatusEnum = pgEnum('design_template_status', [
+  'draft',
+  'active',
+  'retired',
+])
 export const specGeneratedByEnum = pgEnum('spec_generated_by', ['llm', 'operator_edit'])
 export const siteStatusEnum = pgEnum('site_status', [
   'preview',
@@ -196,6 +204,46 @@ export const prospects = pgTable(
   (t) => [index('prospects_normalized_phone_idx').on(t.normalizedPhone)],
 )
 
+export const designTemplates = pgTable('design_templates', {
+  id: id(),
+  name: text('name').notNull(),
+  /** The uploaded generic lander — the structural skeleton for this system. */
+  rawHtml: text('raw_html').notNull(),
+  /** Optional uploaded components/style-system file (reference only). */
+  componentsHtml: text('components_html'),
+  annotatedHtml: text('annotated_html'),
+  slotManifest: jsonb('slot_manifest').$type<SlotManifest>(),
+  tokens: jsonb('tokens').$type<{ palette: string[]; fonts: string[] }>(),
+  /** The lander's original slot texts — register/length exemplars for generation. */
+  sampleTexts: jsonb('sample_texts').$type<Record<string, string>>(),
+  sanitizationReport: jsonb('sanitization_report'),
+  validationReport: jsonb('validation_report').$type<{ ok: boolean; problems: string[] }>(),
+  ingestModel: text('ingest_model'),
+  ingestUsage: jsonb('ingest_usage'),
+  status: designTemplateStatusEnum('status').default('draft').notNull(),
+  createdBy: text('created_by'),
+  ...timestamps(),
+})
+
+export const pitches = pgTable(
+  'pitches',
+  {
+    id: id(),
+    prospectId: uuid('prospect_id')
+      .notNull()
+      .references(() => prospects.id),
+    version: integer('version').notNull(),
+    subject: text('subject').notNull(),
+    /** Body WITHOUT the legal footer — the footer is appended in code at send time. */
+    body: text('body').notNull(),
+    previewUrl: text('preview_url'),
+    model: text('model'),
+    promptVersion: text('prompt_version'),
+    ...timestamps(),
+  },
+  (t) => [unique('pitches_prospect_id_version_unique').on(t.prospectId, t.version)],
+)
+
 export const stylePresets = pgTable(
   'style_presets',
   {
@@ -214,6 +262,8 @@ export const stylePresets = pgTable(
     imageryPool: text('imagery_pool'),
     tone: text('tone').$type<StylePreset['tone']>(),
     status: stylePresetStatusEnum('status').default('active').notNull(),
+    kind: stylePresetKindEnum('kind').default('component').notNull(),
+    designTemplateId: uuid('design_template_id').references(() => designTemplates.id),
     thumbnailRef: text('thumbnail_ref'),
     createdBy: text('created_by'),
     ...timestamps(),
@@ -233,9 +283,10 @@ export const siteSpecs = pgTable(
       .notNull()
       .references(() => prospects.id),
     version: integer('version').notNull(),
-    spec: jsonb('spec').$type<SiteSpec>().notNull(),
+    spec: jsonb('spec').$type<SiteSpec | HtmlSpecDoc>().notNull(),
     templateId: text('template_id'),
     stylePresetId: uuid('style_preset_id').references(() => stylePresets.id),
+    designTemplateId: uuid('design_template_id').references(() => designTemplates.id),
     model: text('model'),
     promptVersion: text('prompt_version'),
     validationReport: jsonb('validation_report').$type<{

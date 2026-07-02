@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@tradies/db": "workspace:*",
+    "@tradies/fixtures": "workspace:*",
+    "@tradies/html-templates": "workspace:*",
     "@tradies/llm": "workspace:*",
     "@tradies/site-spec": "workspace:*",
     "@tradies/templates": "workspace:*",
@@ -22,7 +24,6 @@
   },
   "devDependencies": {
     "@tradies/config": "workspace:*",
-    "@tradies/fixtures": "workspace:*",
     "@types/node": "^26.1.0",
     "eslint": "^9.39.0",
     "typescript": "^5.9.0",

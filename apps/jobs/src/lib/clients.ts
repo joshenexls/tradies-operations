@@ -2,13 +2,25 @@ import {
   FixtureApifyClient,
   FixtureFirecrawlClient,
   FixturePsiClient,
+  FixtureResendMailer,
+  FixtureSmartleadClient,
   FixtureVisionJudge,
   RealApifyClient,
   RealFirecrawlClient,
   RealPsiClient,
+  RealResendMailer,
+  RealSmartleadClient,
   HaikuVisionJudge,
+  type ResendMailer,
+  type SmartleadClient,
 } from '@tradies/integrations'
-import { AnthropicFactsExtractor, FixtureFactsExtractor } from '@tradies/llm'
+import {
+  AnthropicFactsExtractor,
+  AnthropicPitchGenerator,
+  FixtureFactsExtractor,
+  FixturePitchGenerator,
+  type PitchGenerator,
+} from '@tradies/llm'
 import type {
   DiscoveryClient,
   FactsExtractionClient,
@@ -58,4 +70,33 @@ export function resolveClients(env: NodeJS.ProcessEnv = process.env): PipelineCl
     judge: new FixtureVisionJudge(),
     extractor: new FixtureFactsExtractor(),
   }
+}
+
+/**
+ * PITCH_GENERATOR=fixture (default) keeps pitch generation offline;
+ * =anthropic requires ANTHROPIC_API_KEY and fails fast without it.
+ */
+export function resolvePitchGenerator(env: NodeJS.ProcessEnv = process.env): PitchGenerator {
+  const mode = env.PITCH_GENERATOR ?? 'fixture'
+  if (mode === 'anthropic') {
+    const apiKey = env.ANTHROPIC_API_KEY
+    if (!apiKey) throw new Error('PITCH_GENERATOR=anthropic requires ANTHROPIC_API_KEY')
+    return new AnthropicPitchGenerator({ apiKey })
+  }
+  if (mode !== 'fixture') {
+    throw new Error(`Unknown PITCH_GENERATOR "${mode}" (fixture | anthropic)`)
+  }
+  return new FixturePitchGenerator()
+}
+
+/** Real Smartlead only when a key is present — every other environment stays offline. */
+export function resolveSmartlead(env: NodeJS.ProcessEnv = process.env): SmartleadClient {
+  if (env.SMARTLEAD_API_KEY) return new RealSmartleadClient({ apiKey: env.SMARTLEAD_API_KEY })
+  return new FixtureSmartleadClient()
+}
+
+/** Real Resend only when a key is present — every other environment stays offline. */
+export function resolveResendMailer(env: NodeJS.ProcessEnv = process.env): ResendMailer {
+  if (env.RESEND_API_KEY) return new RealResendMailer({ apiKey: env.RESEND_API_KEY })
+  return new FixtureResendMailer()
 }

@@ -18,6 +18,14 @@ function unauthorized(): NextResponse {
 }
 
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  // Provider webhooks verify their own shared secrets/signatures, and the
+  // one-click unsubscribe endpoint must be reachable by any recipient —
+  // Basic auth would break both (PECR requires unsubscribe to actually work).
+  if (pathname.startsWith('/api/webhooks/') || pathname.startsWith('/u/')) {
+    return NextResponse.next()
+  }
+
   const header = request.headers.get('authorization')
   if (!header?.startsWith('Basic ')) return unauthorized()
   let decoded: string

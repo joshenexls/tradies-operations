@@ -1,9 +1,8 @@
 import { createDb, type Db } from '@tradies/db'
 
-let db: Db | undefined
+let db: Db = await createDb()
 
 export function getDb(): Db {
-  if (!db) db = createDb()
   return db
 }
 
