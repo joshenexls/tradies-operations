@@ -64,6 +64,8 @@ export const ingestOpSchema = z.discriminatedUnion('op', [
   }),
   z.object({ op: z.literal('form'), selector }),
   z.object({ op: z.literal('phone-link'), selector }),
+  z.object({ op: z.literal('map'), selector }),
+  z.object({ op: z.literal('reviews-link'), selector }),
 ])
 
 export const ingestOpsSchema = z.object({ ops: z.array(ingestOpSchema) })

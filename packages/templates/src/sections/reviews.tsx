@@ -1,28 +1,13 @@
 /* @jsxRuntime automatic @jsxImportSource react */
-import type { ReactElement } from 'react'
 import type { SectionComponentProps } from '../registry'
-import { SectionHeader } from '../ui'
 
 /**
- * Social proof is the live Google widget only — no stored review text can
- * exist in a spec (DMCC/Google ToS). Without a place id the section renders
- * nothing at all (renderSite also skips the band).
+ * Retired. Social proof now lives in the Contact section as a compliant link to
+ * the business's own real Google listing (see sections/contact.tsx). This
+ * component renders nothing; renderSite also drops any 'reviews' section so no
+ * empty band is emitted. The export + signature are kept so the registry switch
+ * still type-checks.
  */
-export function Reviews({
-  section,
-  ctx,
-  family,
-}: SectionComponentProps<'reviews'>): ReactElement | null {
-  if (!ctx.placeId) return null
-  const gap = section.heading ? family.tokens.contentGap : ''
-  return (
-    <div className={family.tokens.container}>
-      <SectionHeader family={family} kicker="Reviews" heading={section.heading} />
-      <div
-        data-reviews-widget=""
-        data-place-id={ctx.placeId}
-        className={`min-h-44 rounded-[var(--tp-radius)] border border-dashed border-black/15 ${gap}`}
-      />
-    </div>
-  )
+export function Reviews(_props: SectionComponentProps<'reviews'>): null {
+  return null
 }

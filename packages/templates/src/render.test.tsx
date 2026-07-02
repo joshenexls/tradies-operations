@@ -214,19 +214,80 @@ describe('preview banner', () => {
   })
 })
 
-describe('reviews section', () => {
+describe('reviews section (retired)', () => {
   const sections = sweepSections('reviews', 'live-google')
 
-  it('renders the widget container when placeId is set', () => {
-    const html = render(specWith('bold', sections), makeCtx({ placeId: 'ChIJabc123' }))
-    expect(html).toContain('data-reviews-widget')
-    expect(html).toContain('data-place-id="ChIJabc123"')
+  it('renders no widget and no empty band, with or without a placeId', () => {
+    for (const placeId of [null, 'ChIJabc123']) {
+      const html = render(specWith('bold', sections), makeCtx({ placeId }))
+      expect(html).not.toContain('data-reviews-widget')
+      expect(html).not.toContain('data-place-id')
+      expect(html).not.toContain('id="reviews"')
+    }
+  })
+})
+
+describe('contact map + reviews CTA', () => {
+  const MAP_SRC = 'https://maps.google.com/maps?q=Test%2C+Leeds&output=embed'
+  const REVIEWS_URL = 'https://search.google.com/local/reviews?placeid=ChIJx'
+  // any rating / star / review-claim wording is a compliance failure
+  const REVIEW_CLAIM = /\d\s*(?:\/|out of)\s*5|\bstars?\b|\brated\b|\baggregateRating\b/i
+
+  function extractJsonLd(html: string): Record<string, unknown> {
+    const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+    return JSON.parse(match?.[1] ?? '') as Record<string, unknown>
+  }
+
+  it('renders the keyless map and the compliant reviews link when both are set', () => {
+    for (const familyId of FAMILY_IDS) {
+      const html = render(
+        baselineSpec(familyId),
+        makeCtx({ location: { mapsEmbedSrc: MAP_SRC, reviewsUrl: REVIEWS_URL } }),
+      )
+      // keyless, plain (non-sandboxed) iframe with the exact embed src
+      expect(html).toContain('<iframe')
+      expect(html).toContain('maps.google.com/maps?q=Test%2C+Leeds')
+      expect(html).toContain('output=embed')
+      expect(html).toContain('loading="lazy"')
+      expect(html).not.toContain('sandbox')
+      expect(html).not.toContain('allow=')
+      // fixed-label link to the business's own real Google listing
+      expect(html).toContain(`href="${REVIEWS_URL}"`)
+      expect(html).toContain('target="_blank"')
+      expect(html).toContain('rel="noopener noreferrer"')
+      expect(html).toContain('See our reviews on Google')
+    }
   })
 
-  it('renders nothing for the section without placeId', () => {
-    const html = render(specWith('bold', sections), makeCtx({ placeId: null }))
-    expect(html).not.toContain('data-reviews-widget')
-    expect(html).not.toContain('id="reviews"')
+  it('renders the map but no reviews link when reviewsUrl is null', () => {
+    const html = render(
+      baselineSpec('modern'),
+      makeCtx({ location: { mapsEmbedSrc: MAP_SRC, reviewsUrl: null } }),
+    )
+    expect(html).toContain('<iframe')
+    expect(html).toContain('output=embed')
+    expect(html).not.toContain('See our reviews on Google')
+    expect(html).not.toContain('search.google.com/local/reviews')
+  })
+
+  it('renders neither when location is absent, keeping the contact section intact', () => {
+    const html = render(baselineSpec('classic'), makeCtx({ location: null }))
+    expect(html).not.toContain('<iframe')
+    expect(html).not.toContain('See our reviews on Google')
+    // contact still renders its normal content
+    expect(html).toContain('Tell us what needs fixing')
+    expect(html).toContain('action="/api/leads"')
+  })
+
+  it('emits no rating or review-claim text and no aggregateRating in JSON-LD', () => {
+    for (const familyId of FAMILY_IDS) {
+      const html = render(
+        baselineSpec(familyId),
+        makeCtx({ location: { mapsEmbedSrc: MAP_SRC, reviewsUrl: REVIEWS_URL } }),
+      )
+      expect(html).not.toMatch(REVIEW_CLAIM)
+      expect(extractJsonLd(html).aggregateRating).toBeUndefined()
+    }
   })
 })
 

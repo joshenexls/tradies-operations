@@ -117,9 +117,10 @@ export function renderSite(spec: SiteSpec, ctx: TemplateContext): ReactElement {
     '--tp-heading-weight': String(fontPair.headingWeight),
   } as CSSProperties
 
-  // the reviews band disappears entirely without a place id, keeping the
-  // surface/surface-alt rhythm unbroken for the sections that do render
-  const sections = spec.sections.filter((s) => s.kind !== 'reviews' || Boolean(ctx.placeId))
+  // 'reviews' sections render nothing now (social proof moved to Contact as a
+  // compliant Google-listing link), so drop them entirely — no empty band, and
+  // the surface/surface-alt rhythm stays unbroken for the sections that render
+  const sections = spec.sections.filter((s) => s.kind !== 'reviews')
 
   return (
     <div

@@ -4,8 +4,8 @@ import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { after } from 'next/server'
 import type { DesignTemplateRow } from '@tradies/db'
-import { designTemplates, siteSpecs, sites } from '@tradies/db/schema'
-import { parseStoredSpec, type StoredSpec } from '@tradies/site-spec'
+import { designTemplates, prospects, siteSpecs, sites } from '@tradies/db/schema'
+import { buildSiteLocation, parseStoredSpec, type StoredSpec } from '@tradies/site-spec'
 import { renderHtmlSite } from '@tradies/html-templates'
 import { renderSite } from '@tradies/templates'
 import { getDb } from '@/lib/db'
@@ -26,6 +26,8 @@ type Loaded = {
   stored: StoredSpec
   /** Only present for html-kind specs — the ingested skeleton to render into. */
   template: DesignTemplateRow | null
+  /** Evidenced location fields for the map + reviews CTA (built in code). */
+  place: { placeId: string | null; postcode: string | null }
 }
 
 async function loadSite(slug: string): Promise<Loaded | null> {
@@ -39,6 +41,12 @@ async function loadSite(slug: string): Promise<Loaded | null> {
   const current =
     versioned.find((v) => v.version === site.currentSpecVersion) ?? versioned[versioned.length - 1]
   if (!current) return null
+  const [prospect] = await db
+    .select({ placeId: prospects.placeId, postcode: prospects.postcode })
+    .from(prospects)
+    .where(eq(prospects.id, site.prospectId))
+    .limit(1)
+  const place = { placeId: prospect?.placeId ?? null, postcode: prospect?.postcode ?? null }
   const stored = parseStoredSpec(current.spec)
   if (stored.kind === 'html') {
     const [template] = await db
@@ -47,9 +55,9 @@ async function loadSite(slug: string): Promise<Loaded | null> {
       .where(eq(designTemplates.id, stored.doc.designTemplateId))
       .limit(1)
     if (!template?.annotatedHtml || !template.slotManifest) return null
-    return { site, stored, template }
+    return { site, stored, template, place }
   }
-  return { site, stored, template: null }
+  return { site, stored, template: null, place }
 }
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
@@ -83,7 +91,19 @@ export default async function TenantPage({
   const { op } = await searchParams
   const loaded = await loadSite(slug)
   if (!loaded) notFound()
-  const { site, stored, template } = loaded
+  const { site, stored, template, place } = loaded
+
+  // map (always, from name/town) + reviews CTA (place-id-gated), code-built
+  const identity =
+    stored.kind === 'html'
+      ? { businessName: stored.doc.facts.businessName, town: stored.doc.facts.town }
+      : { businessName: stored.spec.identity.businessName, town: stored.spec.identity.town }
+  const location = buildSiteLocation({
+    businessName: identity.businessName,
+    town: identity.town,
+    postcode: place.postcode,
+    placeId: place.placeId,
+  })
 
   const requestHeaders = await headers()
   after(() =>
@@ -111,6 +131,7 @@ export default async function TenantPage({
         facts: stored.doc.facts,
         claimToken: site.claimToken,
         chatbotEnabled: site.chatbotEnabled,
+        location,
       }),
     })
     const bodyAttrs = Object.entries(rendered.bodyAttrs)
@@ -143,7 +164,8 @@ export default async function TenantPage({
     slug: site.slug,
     noindex: site.noindex,
     claimToken: site.claimToken,
-    placeId: null,
+    placeId: place.placeId,
+    location,
   })
   return (
     <>

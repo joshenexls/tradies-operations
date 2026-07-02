@@ -27,10 +27,11 @@ export default defineConfig({
       : undefined,
   },
   webServer: {
-    // CHAT_WIDGET=0 keeps the JS-injected chat button out of the screenshots —
-    // the widget is identical on every site, so it carries no visual signal
+    // CHAT_WIDGET=0 keeps the JS-injected chat button out of the screenshots;
+    // MAPS_EMBED=0 drops the Google Maps iframe — both load from the network,
+    // so disabling them keeps baselines deterministic regardless of runner net
     command:
-      'rm -rf .pglite/visual && PGLITE_DIR=.pglite/visual pnpm seed && PGLITE_DIR=.pglite/visual CHAT_WIDGET=0 pnpm dev --port 3100',
+      'rm -rf .pglite/visual && PGLITE_DIR=.pglite/visual pnpm seed && PGLITE_DIR=.pglite/visual CHAT_WIDGET=0 MAPS_EMBED=0 pnpm dev --port 3100',
     url: 'http://localhost:3100',
     reuseExistingServer: false,
     timeout: 180_000,

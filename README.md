@@ -59,6 +59,16 @@ system × trade (specialisation wins, generic falls back):
   `bold-mono`), seeded active: `pnpm gen --style craftsman-dark ...` works
   offline.
 
+Every generated site shows a keyless Google **Maps** embed of the business's
+location (from the discovered address/town — no API key, the one external
+embed the sanitizer sanctions) and, for discovered prospects, a compliant
+"See our reviews on Google" link to their real Google listing (place_id).
+All social-proof text is code-built, never LLM-authored — no rating or
+review copy is ever fabricated, and JSON-LD emits no `aggregateRating`
+(DMCC). Imagery comes from the `/pool` route: deterministic trade-tuned
+placeholder art offline, real curated photography when `IMAGE_POOL_SOURCE=r2`
++ a Pexels-sourced R2 pool are wired (`scripts/curate-pool.ts`).
+
 Every generated site carries the lean chatbot widget (`/embed/v1.js` →
 `POST /api/chat`): Claude Haiku answering only from the prospect's facts
 sheet, capturing name/phone/email into the same `leads` table as the form,

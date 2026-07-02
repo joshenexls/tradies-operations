@@ -6,8 +6,10 @@ import { NextResponse } from 'next/server'
  * - IMAGE_POOL_SOURCE=r2 (+ POOL_BASE_URL): 302 to curated licensed
  *   photography on R2 at `${POOL_BASE_URL}/${pool}/${index}.jpg` (uploaded by
  *   scripts/curate-pool.ts — see docs/deploy-cloudflare.md).
- * - default 'svg': deterministic, offline SVG placeholders (byte-identical to
- *   Phase 1, so specs and visual baselines survive the swap).
+ * - default 'svg': deterministic, trade-tuned placeholder art. Not real
+ *   photography, but composed to read as a professional editorial image
+ *   (layered palette, soft light, grain, vignette) rather than a labelled
+ *   gradient — so offline previews look presentable before the R2 pool lands.
  */
 
 function hash(s: string): number {
@@ -17,6 +19,29 @@ function hash(s: string): number {
     h = Math.imul(h, 16777619)
   }
   return h >>> 0
+}
+
+/** Deep base / mid / warm-or-cool accent, chosen to feel like the trade. */
+type Palette = { base: string; mid: string; accent: string; light: string }
+
+const PALETTES: Record<string, Palette> = {
+  heritage: { base: '#241812', mid: '#6b4a2b', accent: '#c8944f', light: '#e8c79a' },
+  modern: { base: '#0f1e2b', mid: '#2b5570', accent: '#63a6c9', light: '#bfe0f0' },
+  bold: { base: '#17130f', mid: '#7a3b1e', accent: '#e0873a', light: '#f2c58f' },
+  plumbing: { base: '#0a262a', mid: '#155962', accent: '#4fb3b8', light: '#b7e7e6' },
+  roofing: { base: '#1f272c', mid: '#405663', accent: '#b5673f', light: '#e2b79c' },
+  electrical: { base: '#161310', mid: '#5a4420', accent: '#e0b23a', light: '#f4dd97' },
+}
+
+function paletteFor(pool: string): Palette {
+  const p = pool.toLowerCase()
+  if (p.includes('heritage')) return PALETTES.heritage!
+  if (p.includes('bold')) return PALETTES.bold!
+  if (p.includes('plumb')) return PALETTES.plumbing!
+  if (p.includes('roof')) return PALETTES.roofing!
+  if (p.includes('electric')) return PALETTES.electrical!
+  if (p.includes('modern')) return PALETTES.modern!
+  return PALETTES.modern!
 }
 
 export async function GET(
@@ -33,26 +58,70 @@ export async function GET(
     })
   }
 
-  const seed = hash(`${pool}:${index}`)
-  const hue = seed % 360
-  const hue2 = (hue + 40) % 360
-  const label = pool.replaceAll('-', ' ')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="hsl(${hue} 45% 38%)"/>
-      <stop offset="1" stop-color="hsl(${hue2} 55% 24%)"/>
-    </linearGradient>
-  </defs>
-  <rect width="1600" height="1000" fill="url(#g)"/>
-  <circle cx="${300 + (seed % 900)}" cy="${200 + (seed % 500)}" r="260" fill="hsl(${hue2} 60% 55% / 0.25)"/>
-  <circle cx="${1100 - (seed % 400)}" cy="${700 - (seed % 300)}" r="180" fill="hsl(${hue} 60% 70% / 0.2)"/>
-  <text x="800" y="520" text-anchor="middle" font-family="system-ui, sans-serif" font-size="44" fill="rgba(255,255,255,0.55)" letter-spacing="6">${label.toUpperCase()} ${index}</text>
-</svg>`
+  const svg = placeholderSvg(pool, index)
   return new NextResponse(svg, {
     headers: {
       'Content-Type': 'image/svg+xml',
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   })
+}
+
+/** Deterministic editorial placeholder — same (pool,index) → identical bytes. */
+function placeholderSvg(pool: string, index: string): string {
+  const pal = paletteFor(pool)
+  const seed = hash(`${pool}:${index}`)
+  // seeded, in-family variation so the 6 images of a pool differ but cohere
+  const angle = 100 + (seed % 60) // 100–160deg gradient sweep
+  const lightX = 20 + (seed % 45) // % — soft key light position
+  const lightY = 18 + ((seed >> 3) % 40)
+  const blobX = 30 + ((seed >> 5) % 55)
+  const blobY = 55 + ((seed >> 7) % 35)
+  const bandRot = -28 + ((seed >> 9) % 50)
+  const gid = `g${seed.toString(36)}`
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="${gid}bg" gradientTransform="rotate(${angle} 0.5 0.5)">
+      <stop offset="0" stop-color="${pal.mid}"/>
+      <stop offset="0.55" stop-color="${pal.base}"/>
+      <stop offset="1" stop-color="${pal.base}"/>
+    </linearGradient>
+    <radialGradient id="${gid}key" cx="${lightX}%" cy="${lightY}%" r="70%">
+      <stop offset="0" stop-color="${pal.light}" stop-opacity="0.42"/>
+      <stop offset="0.45" stop-color="${pal.accent}" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="${pal.base}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="${gid}vig" cx="50%" cy="46%" r="75%">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.42"/>
+    </radialGradient>
+    <filter id="${gid}soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="70"/>
+    </filter>
+    <filter id="${gid}grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="${seed % 100}" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.06"/></feComponentTransfer>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#${gid}bg)"/>
+
+  <!-- soft depth: two blurred accent masses -->
+  <g filter="url(#${gid}soft)" opacity="0.9">
+    <circle cx="${(blobX / 100) * 1600}" cy="${(blobY / 100) * 1000}" r="340" fill="${pal.accent}" opacity="0.28"/>
+    <circle cx="${1600 - (blobX / 100) * 1200}" cy="${((100 - blobY) / 100) * 900}" r="240" fill="${pal.mid}" opacity="0.5"/>
+  </g>
+
+  <!-- structural diagonal band for composition -->
+  <g transform="rotate(${bandRot} 800 500)" opacity="0.10">
+    <rect x="-200" y="470" width="2000" height="150" fill="${pal.light}"/>
+  </g>
+
+  <!-- key light + vignette + grain -->
+  <rect width="1600" height="1000" fill="url(#${gid}key)"/>
+  <rect width="1600" height="1000" fill="url(#${gid}vig)"/>
+  <rect width="1600" height="1000" filter="url(#${gid}grain)"/>
+</svg>`
 }

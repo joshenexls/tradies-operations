@@ -25,6 +25,8 @@ export type AnnotationOp =
   | { op: 'strip'; selector: string; id: string; reason: 'testimonials' | 'reviews' | 'other' }
   | { op: 'form'; selector: string }
   | { op: 'phone-link'; selector: string }
+  | { op: 'map'; selector: string }
+  | { op: 'reviews-link'; selector: string }
 
 /**
  * One hand-written HTML design system: the generic lander an operator would

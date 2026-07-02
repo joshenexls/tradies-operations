@@ -2,7 +2,7 @@ import type { StylePresetRow } from '@tradies/db'
 import { presetFromRow } from '@tradies/engine'
 import { allProspectFixtures } from '@tradies/fixtures'
 import { FixtureLLM } from '@tradies/llm'
-import { parseSiteSpec } from '@tradies/site-spec'
+import { buildSiteLocation, parseSiteSpec } from '@tradies/site-spec'
 import { renderSite, type TemplateContext } from '@tradies/templates'
 
 /**
@@ -36,6 +36,11 @@ export async function SampleRender({
     }),
     leadFormAction: '#',
     placeId: null,
+    location: buildSiteLocation({
+      businessName: fixture.facts.businessName,
+      town: fixture.facts.town,
+      placeId: fixture.places.placeId,
+    }),
     previewBanner: null,
   }
 

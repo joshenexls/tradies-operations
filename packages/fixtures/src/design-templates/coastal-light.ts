@@ -93,6 +93,8 @@ export const coastalLight: DesignTemplateFixture = {
       <input id="cb-phone" name="phone" type="tel" placeholder="Phone number">
       <button class="cta" type="submit">Send</button>
     </form>
+    <iframe class="map" src="https://maps.google.com/maps?q=placeholder&output=embed" title="Map"></iframe>
+    <a class="reviews-cta" href="https://example.com">See our reviews on Google</a>
   </section>
 
   <footer>
@@ -141,6 +143,9 @@ export const coastalLight: DesignTemplateFixture = {
     { op: 'slot', selector: '#contact h2', id: 'contact-heading', kind: 'short-label' },
     { op: 'slot', selector: 'footer p', id: 'footer-line', kind: 'paragraph' },
     { op: 'form', selector: '#contact form' },
+    // location surfaces filled in code at render (map query + real reviews link):
+    { op: 'map', selector: '.map' },
+    { op: 'reviews-link', selector: '.reviews-cta' },
   ],
   expectedManifest: {
     manifestVersion: 1,

@@ -28,7 +28,7 @@ import {
   seedStylePresets,
 } from '@tradies/engine'
 import { renderHtmlSite } from '@tradies/html-templates'
-import { tradeSchema, type BusinessFacts } from '@tradies/site-spec'
+import { buildSiteLocation, tradeSchema, type BusinessFacts } from '@tradies/site-spec'
 import { renderSite, type TemplateContext } from '@tradies/templates'
 
 const { values } = parseArgs({
@@ -127,6 +127,10 @@ async function main() {
   }
   const { stored, slug } = result
 
+  // manual prospects have no place id, so the map renders from name/town and
+  // the reviews CTA stays hidden (correct — there's no listing to point at)
+  const location = buildSiteLocation({ businessName: facts.businessName, town })
+
   let html: string
   let summary: string
   if (stored.kind === 'component') {
@@ -139,6 +143,7 @@ async function main() {
       }),
       leadFormAction: '#lead-form-disabled-in-static-preview',
       placeId: null,
+      location,
       previewBanner: { operatorName: 'Tradies Studio' },
       privacyNoticeUrl: '#',
     }
@@ -160,6 +165,7 @@ async function main() {
       ctx: {
         resolveImage: (ref) => ({ src: `https://placehold.local/pool/${ref.pool}/${ref.index}` }),
         leadFormAction: '#lead-form-disabled-in-static-preview',
+        location,
         previewBanner: { operatorName: 'Tradies Studio', businessName: facts.businessName },
       },
     })

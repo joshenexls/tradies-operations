@@ -51,6 +51,9 @@ export const annotationOpSchema = z.discriminatedUnion('op', [
   }),
   z.object({ op: z.literal('form'), selector: selectorSchema }),
   z.object({ op: z.literal('phone-link'), selector: selectorSchema }),
+  // location surfaces, filled in code at render (never LLM copy):
+  z.object({ op: z.literal('map'), selector: selectorSchema }),
+  z.object({ op: z.literal('reviews-link'), selector: selectorSchema }),
 ])
 export type AnnotationOp = z.infer<typeof annotationOpSchema>
 export type AnnotationOpInput = z.input<typeof annotationOpSchema>
@@ -221,6 +224,28 @@ export function applyAnnotations(
           break
         }
         matches.attr('data-phone-href', '')
+        break
+      }
+
+      case 'map': {
+        // the keyless Google Maps iframe — the lander's placeholder src is
+        // already sanitizer-approved; render swaps in the real location query
+        const matches = $(op.selector).filter('iframe')
+        if (matches.length === 0) {
+          unmatched.push(op)
+          break
+        }
+        matches.first().attr('data-map-embed', '')
+        break
+      }
+
+      case 'reviews-link': {
+        const matches = $(op.selector).filter('a')
+        if (matches.length === 0) {
+          unmatched.push(op)
+          break
+        }
+        matches.attr('data-reviews-link', '')
         break
       }
     }

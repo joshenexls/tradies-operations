@@ -1,6 +1,6 @@
 import { load } from 'cheerio'
 import type { Cheerio, CheerioAPI } from 'cheerio'
-import type { ImageRef, SlotManifest } from '@tradies/site-spec'
+import type { ImageRef, SiteLocation, SlotManifest } from '@tradies/site-spec'
 
 /**
  * Pure renderer for html-kind design systems: annotated skeleton + manifest +
@@ -24,6 +24,8 @@ export type HtmlRenderContext = {
   jsonLd?: string
   chatEmbed?: { src: string; siteId: string; demo: boolean } | null
   privacyNoticeUrl?: string
+  /** Keyless map embed + real Google-listing reviews link, built in code. */
+  location?: SiteLocation | null
 }
 
 export type RenderHtmlSiteResult = {
@@ -229,6 +231,21 @@ export function renderHtmlSite(input: {
       $(node).attr('href', `tel:${digits}`)
       $(node).text(phoneValue)
     })
+  }
+
+  // 5b. location surfaces — filled in code, never from LLM content. The map
+  // keeps the lander's sanitizer-approved iframe and only swaps the src query;
+  // a reviews link with no real listing (no place id) is removed outright.
+  if (ctx.location?.mapsEmbedSrc) {
+    $('iframe[data-map-embed]').attr('src', ctx.location.mapsEmbedSrc)
+  } else {
+    // no query (or map disabled) — drop the iframe rather than leave a blank src
+    $('iframe[data-map-embed]').remove()
+  }
+  if (ctx.location?.reviewsUrl) {
+    $('a[data-reviews-link]').attr('href', ctx.location.reviewsUrl).attr('rel', 'noopener')
+  } else {
+    $('a[data-reviews-link]').remove()
   }
 
   // 6. preview banner (fixed markup, inline styles — mirrors @tradies/templates)
