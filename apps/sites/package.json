@@ -16,6 +16,7 @@
   "dependencies": {
     "@tradies/compliance": "workspace:*",
     "@tradies/db": "workspace:*",
+    "@tradies/engine": "workspace:*",
     "@tradies/fixtures": "workspace:*",
     "@tradies/llm": "workspace:*",
     "@tradies/site-spec": "workspace:*",

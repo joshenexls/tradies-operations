@@ -12,8 +12,9 @@ import { tradeSchema } from './trades'
 
 export const factSourceSchema = z.enum([
   'own_website', // extracted from the business's existing site (Firecrawl)
-  'companies_house',
-  'overture',
+  'companies_house', // operator-recorded from the public register
+  'apify', // Google Maps listing via the Apify scraper (discovery warehouse)
+  'overture', // legacy Phase-1 source, retained for fixtures
   'operator', // typed in by the operator (manual mode / corrections)
   'customer', // provided by the customer post-conversion (intake, edits)
 ])

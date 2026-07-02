@@ -1,0 +1,69 @@
+import { expect, test } from '@playwright/test'
+
+/**
+ * Smoke pass over the four ops screens against the seeded fixture DB
+ * (20 prospects, 6 seed design systems, one 'Fixture batch' of 5 pending
+ * site reviews). Serial: the approve/classify tests mutate shared state.
+ */
+
+test.describe.configure({ mode: 'serial' })
+
+test('pipeline lists the 20 fixture prospects and the trade filter narrows them', async ({
+  page,
+}) => {
+  await page.goto('/pipeline')
+  await expect(page.getByTestId('pipeline-row')).toHaveCount(20)
+
+  await page.getByLabel('Trade').selectOption('plumber')
+  await expect(page).toHaveURL(/trade=plumber/)
+  // exactly 4 plumber fixtures
+  await expect(page.getByTestId('pipeline-row')).toHaveCount(4)
+  await expect(page.getByRole('link', { name: 'Swift Flow Plumbing' })).toBeVisible()
+})
+
+test('library shows the 6 seed systems grouped and renders a live sample', async ({ page }) => {
+  await page.goto('/library')
+  await expect(page.getByTestId('preset-card')).toHaveCount(6)
+
+  await page.getByRole('link', { name: 'Edit Modern — Plumbing' }).click()
+  // default sample fixture is the first plumber (Swift Flow Plumbing) and the
+  // deterministic FixtureLLM always grounds the hero headline in its name
+  await expect(page.getByTestId('sample-render').locator('h1')).toContainText('Swift Flow Plumbing')
+})
+
+test('review batch shows pending cards and approving flips request + prospect', async ({
+  page,
+}) => {
+  await page.goto('/review')
+  await page.getByRole('link', { name: 'Fixture batch' }).click()
+  await expect(page.getByTestId('review-card')).toHaveCount(5)
+  await expect(page.getByTestId('batch-progress')).toContainText('0/5 decided')
+
+  const first = page.getByTestId('review-card').first()
+  const name = (await first.getByTestId('review-prospect-name').innerText()).trim()
+  await first.getByRole('button', { name: 'Approve' }).click()
+
+  await expect(page.getByTestId('review-card')).toHaveCount(4)
+  await expect(page.getByTestId('batch-progress')).toContainText('1/5 decided')
+  await expect(page.getByTestId('decided-row')).toHaveCount(1)
+
+  // the prospect's own page shows the flipped status
+  await page.locator('summary', { hasText: 'Decided (1)' }).click()
+  await page.getByTestId('decided-row').getByRole('link', { name }).click()
+  await expect(page.getByTestId('status-badge')).toHaveText('approved')
+})
+
+test('entity control classifies a prospect and the audit trail shows it', async ({ page }) => {
+  // Goyt Valley Builders seeds as entityType 'unknown'
+  await page.goto('/pipeline?city=Stockport')
+  await page.getByRole('link', { name: 'Goyt Valley Builders' }).click()
+
+  await expect(page.getByTestId('entity-badge')).toHaveText('unknown')
+  await page.getByRole('radio', { name: /Corporate \(Ltd/ }).check()
+  await page.getByLabel('Note').fill('verified on Companies House, active Ltd')
+  await page.getByRole('button', { name: 'Save classification' }).click()
+
+  await expect(page.getByTestId('entity-badge')).toHaveText('corporate')
+  await expect(page.getByTestId('timeline')).toContainText('entity_classified')
+  await expect(page.getByTestId('timeline')).toContainText('operator')
+})

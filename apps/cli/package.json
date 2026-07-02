@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tradies/db": "workspace:*",
+    "@tradies/engine": "workspace:*",
     "@tradies/llm": "workspace:*",
     "@tradies/site-spec": "workspace:*",
     "@tradies/templates": "workspace:*",

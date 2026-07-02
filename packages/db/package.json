@@ -13,13 +13,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint src",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",
     "@tradies/site-spec": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "nanoid": "^5.1.16"
+    "nanoid": "^5.1.16",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@tradies/config": "workspace:*",

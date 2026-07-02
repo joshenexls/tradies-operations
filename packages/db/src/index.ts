@@ -1,6 +1,8 @@
 import { mkdirSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
+import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import * as relations from './relations'
 import * as schema from './schema'
 
@@ -22,6 +24,20 @@ export function createPgliteDb(dataDir?: string) {
 }
 
 export type Db = ReturnType<typeof createPgliteDb>
+
+/**
+ * Environment-selected client: DATABASE_URL → Supabase/Postgres (postgres-js,
+ * prepare:false so the transaction pooler is safe); otherwise local PGlite.
+ * The postgres-js instance is runtime-compatible with the PGlite drizzle API
+ * for everything this codebase uses — the cast keeps one Db type downstream.
+ */
+export function createDb(env: NodeJS.ProcessEnv = process.env): Db {
+  if (env.DATABASE_URL) {
+    const client = postgres(env.DATABASE_URL, { prepare: false })
+    return drizzlePostgres(client, { schema: dbSchema }) as unknown as Db
+  }
+  return createPgliteDb(env.PGLITE_DIR ?? '.pglite/dev')
+}
 
 export type Prospect = typeof schema.prospects.$inferSelect
 export type NewProspect = typeof schema.prospects.$inferInsert

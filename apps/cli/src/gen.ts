@@ -7,27 +7,25 @@
  *     [--areas "Leeds,Headingley,Otley"] [--services "Boiler repair,Bathrooms"]
  *
  * Writes to the shared PGlite dir (stop the dev server first) and emits a
- * standalone HTML preview under out/preview/.
+ * standalone HTML preview under out/preview/. Set SITE_GENERATOR=anthropic
+ * (+ ANTHROPIC_API_KEY) to generate with real Claude.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
-import { customAlphabet } from 'nanoid'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createPgliteDb } from '@tradies/db'
 import { migrateDb } from '@tradies/db/migrate'
-import { prospects, sites, siteSpecs } from '@tradies/db/schema'
-import { FixtureLLM } from '@tradies/llm'
+import { prospects } from '@tradies/db/schema'
 import {
-  parseSiteSpec,
-  resolveStylePreset,
-  tradeSchema,
-  validateSpecAgainstFacts,
-  validateSpecAgainstPreset,
-  type BusinessFacts,
-} from '@tradies/site-spec'
-import { renderSite, SEED_STYLE_PRESETS, type TemplateContext } from '@tradies/templates'
-
-const slugId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8)
+  GenerationFailedError,
+  generateSiteVersion,
+  resolveActivePreset,
+  resolveCostRatesFromEnv,
+  resolveGeneratorFromEnv,
+  seedStylePresets,
+} from '@tradies/engine'
+import { tradeSchema, type BusinessFacts } from '@tradies/site-spec'
+import { renderSite, type TemplateContext } from '@tradies/templates'
 
 const { values } = parseArgs({
   // pnpm run forwards a literal `--` separator — tolerate positionals
@@ -78,33 +76,19 @@ const facts: BusinessFacts = {
 }
 
 async function main() {
-  const preset = resolveStylePreset(SEED_STYLE_PRESETS, values.style ?? 'modern', trade)
-  if (!preset) {
-    const keys = [...new Set(SEED_STYLE_PRESETS.map((p) => p.styleKey))].join(', ')
-    fail(`unknown style "${values.style}" — available systems: ${keys}`)
-  }
+  const db = createPgliteDb(process.env.PGLITE_DIR ?? '../sites/.pglite/dev')
+  await migrateDb(db)
+  await seedStylePresets(db)
+
+  const styleKey = values.style ?? 'modern'
+  const resolved = await resolveActivePreset(db, styleKey, trade)
+  if (!resolved) fail(`unknown style "${styleKey}" — check the design library (/library in ops)`)
+  const { preset, presetId } = resolved
 
   console.log(
     `\nGenerating "${name}" (${trade}, ${town}) with system "${preset.styleKey}"${preset.trade ? ` [${preset.trade} specialisation]` : ' [generic]'}...`,
   )
 
-  const generator = new FixtureLLM()
-  const { candidate } = await generator.generateSiteSpec({ facts, preset })
-  const spec = parseSiteSpec(candidate)
-  const factReport = validateSpecAgainstFacts(spec)
-  const presetReport = validateSpecAgainstPreset(spec, preset)
-  if (!factReport.ok)
-    fail(`FACT-GUARD rejected the spec:\n${JSON.stringify(factReport.violations, null, 2)}`)
-  if (!presetReport.ok) fail(`preset validation failed:\n${presetReport.violations.join('\n')}`)
-
-  const db = createPgliteDb(process.env.PGLITE_DIR ?? '../sites/.pglite/dev')
-  await migrateDb(db)
-
-  const slug = `${name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)}-${slugId()}`
   const [prospect] = await db
     .insert(prospects)
     .values({
@@ -115,29 +99,27 @@ async function main() {
       status: 'in_review',
       segment: 'no_site',
       phone: values.phone ?? null,
+      extractedProfile: facts,
     })
     .returning()
   if (!prospect) fail('failed to insert prospect')
 
-  await db.insert(siteSpecs).values({
-    prospectId: prospect.id,
-    version: 1,
-    spec,
-    templateId: spec.templateId,
-    model: 'fixture-llm',
-    promptVersion: 'site-spec-v1',
-    validationReport: { fact: factReport, preset: presetReport },
-    generatedBy: 'llm',
-  })
-  await db.insert(sites).values({
-    prospectId: prospect.id,
-    slug,
-    currentSpecVersion: 1,
-    status: 'preview',
-    noindex: true,
-    claimToken: `claim-${slugId()}`,
-    portalToken: `portal-${slugId()}`,
-  })
+  let result
+  try {
+    result = await generateSiteVersion({
+      db,
+      generator: resolveGeneratorFromEnv(),
+      prospectId: prospect.id,
+      facts,
+      preset,
+      stylePresetId: presetId,
+      costRates: resolveCostRatesFromEnv(),
+    })
+  } catch (err) {
+    if (err instanceof GenerationFailedError) fail(err.message)
+    throw err
+  }
+  const { spec, slug } = result
 
   const ctx: TemplateContext = {
     resolveImage: (ref) => ({
@@ -155,7 +137,9 @@ async function main() {
   const htmlPath = `out/preview/${slug}.html`
   await writeFile(htmlPath, html)
 
-  console.log(`\n✓ Generated and stored as version 1`)
+  console.log(
+    `\n✓ Generated and stored as version ${result.version} (${result.attempts} attempt${result.attempts > 1 ? 's' : ''})`,
+  )
   console.log(`  slug:     ${slug}`)
   console.log(
     `  dev URL:  http://${slug}.localhost:3000  (start: pnpm --filter @tradies/sites dev)`,

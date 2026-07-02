@@ -19,3 +19,9 @@ export class NotFoundError extends Error {
     this.name = 'NotFoundError'
   }
 }
+
+/**
+ * Minimal fetch surface the real adapters depend on. Tests inject a stub;
+ * production uses the global fetch. NO adapter test may hit the network.
+ */
+export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>

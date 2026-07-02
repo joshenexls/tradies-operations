@@ -5,6 +5,7 @@ import {
   check,
   doublePrecision,
   integer,
+  index,
   jsonb,
   numeric,
   pgEnum,
@@ -158,34 +159,42 @@ export const eventActorEnum = pgEnum('event_actor', ['system', 'operator', 'pros
 
 // ── tables ─────────────────────────────────────────────────────────────────
 
-export const prospects = pgTable('prospects', {
-  id: id(),
-  /** THE ONLY Places-derived identifier we may store (Google ToS). */
-  placeId: text('place_id').unique(),
-  hasWebsite: boolean('has_website'),
-  isFacebookOnly: boolean('is_facebook_only'),
-  overtureId: text('overture_id'),
-  businessName: text('business_name'),
-  address: text('address'),
-  postcode: text('postcode'),
-  city: text('city'),
-  /** Only ever written from Overture/operator — never from Places. */
-  phone: text('phone'),
-  websiteUrl: text('website_url'),
-  trade: tradeEnum('trade'),
-  source: prospectSourceEnum('source'),
-  entityType: entityTypeEnum('entity_type').default('unknown').notNull(),
-  companiesHouseNumber: text('companies_house_number'),
-  entityCheckedAt: timestamp('entity_checked_at', { withTimezone: true }),
-  status: prospectStatusEnum('status').default('discovered').notNull(),
-  segment: prospectSegmentEnum('segment'),
-  websiteHealthScore: integer('website_health_score'),
-  extractedProfile: jsonb('extracted_profile').$type<Partial<BusinessFacts>>(),
-  /** Per-field source trail (which upstream produced each stored fact). */
-  dataProvenance: jsonb('data_provenance').$type<Record<string, unknown>>(),
-  suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
-  ...timestamps(),
-})
+export const prospects = pgTable(
+  'prospects',
+  {
+    id: id(),
+    /** Google place id as returned by the Apify Maps scraper — stable dedupe key. */
+    placeId: text('place_id').unique(),
+    hasWebsite: boolean('has_website'),
+    isFacebookOnly: boolean('is_facebook_only'),
+    overtureId: text('overture_id'),
+    businessName: text('business_name'),
+    address: text('address'),
+    postcode: text('postcode'),
+    city: text('city'),
+    /** Written from Apify discovery payloads or operator input. */
+    phone: text('phone'),
+    /** normalizePhone(phone) — secondary dedupe key across discovery runs. */
+    normalizedPhone: text('normalized_phone'),
+    websiteUrl: text('website_url'),
+    trade: tradeEnum('trade'),
+    source: prospectSourceEnum('source'),
+    entityType: entityTypeEnum('entity_type').default('unknown').notNull(),
+    companiesHouseNumber: text('companies_house_number'),
+    entityCheckedAt: timestamp('entity_checked_at', { withTimezone: true }),
+    status: prospectStatusEnum('status').default('discovered').notNull(),
+    segment: prospectSegmentEnum('segment'),
+    websiteHealthScore: integer('website_health_score'),
+    extractedProfile: jsonb('extracted_profile').$type<Partial<BusinessFacts>>(),
+    /** Per-field source trail (which upstream produced each stored fact). */
+    dataProvenance: jsonb('data_provenance').$type<Record<string, unknown>>(),
+    /** Latest raw Apify item for this prospect — audit trail for disputed fields. */
+    apifyRaw: jsonb('apify_raw'),
+    suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [index('prospects_normalized_phone_idx').on(t.normalizedPhone)],
+)
 
 export const stylePresets = pgTable(
   'style_presets',
@@ -508,10 +517,12 @@ export const discoveryRuns = pgTable('discovery_runs', {
   trade: tradeEnum('trade'),
   query: jsonb('query'),
   resultsCount: integer('results_count'),
+  apifyRunId: text('apify_run_id'),
   runAt: timestamp('run_at', { withTimezone: true }),
   ...timestamps(),
 })
 
+/** LEGACY: unused since the Phase 3 Apify amendment; retained to avoid a destructive migration. */
 export const overturePlaces = pgTable('overture_places', {
   id: id(),
   overtureId: text('overture_id').unique(),
