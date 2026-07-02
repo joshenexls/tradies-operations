@@ -67,3 +67,28 @@ export function segmentTone(segment: string | null): BadgeTone {
   if (segment === 'fine') return 'grey'
   return 'grey'
 }
+
+/** customers.status: pending_checkout | active | canceled | erased. */
+export function customerTone(status: string | null): BadgeTone {
+  if (status === 'active') return 'green'
+  if (status === 'pending_checkout') return 'amber'
+  if (status === 'canceled' || status === 'erased') return 'red'
+  return 'grey'
+}
+
+/** subscriptions.status mirrors Stripe's vocabulary verbatim. */
+export function subscriptionTone(status: string | null): BadgeTone {
+  if (status === 'active' || status === 'trialing') return 'green'
+  if (status === 'past_due' || status === 'unpaid' || status === 'incomplete') return 'amber'
+  if (status === 'canceled' || status === 'incomplete_expired') return 'red'
+  return 'grey'
+}
+
+/** sites.status: preview | claimed | live | expired | disabled. */
+export function siteTone(status: string): BadgeTone {
+  if (status === 'live') return 'green'
+  if (status === 'claimed') return 'blue'
+  if (status === 'expired') return 'amber'
+  if (status === 'disabled') return 'red'
+  return 'grey'
+}

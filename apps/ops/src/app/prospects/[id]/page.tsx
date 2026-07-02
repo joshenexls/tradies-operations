@@ -2,25 +2,36 @@ import { desc, eq, inArray, or } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { checkSuppression } from '@tradies/compliance'
 import {
+  customers,
   events,
   permissionEvents,
   prospectCosts,
   prospects,
   siteSpecs,
   sites,
+  subscriptions,
   suppressionList,
 } from '@tradies/db/schema'
 import { listActivePresets } from '@tradies/engine'
 import { getDb } from '@/lib/db'
 import { formatDate, formatMicroGbp, relativeTime } from '@/lib/format'
+import { claimUrl, portalUrl } from '@/lib/portal-url'
 import { operatorPreviewUrl } from '@/lib/preview-url'
 import { latestEntityNote, previewEngagement } from '@/lib/queries'
 import { isUuid } from '@/lib/uuid'
 import { EntityControl } from '@/components/entity-control'
-import { Badge, entityTone, segmentTone, statusTone } from '@/components/ui/badge'
+import {
+  Badge,
+  customerTone,
+  entityTone,
+  segmentTone,
+  statusTone,
+  subscriptionTone,
+} from '@/components/ui/badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { Table, TableShell, Td, Th } from '@/components/ui/table'
 import { ActionsBar } from './actions-bar'
+import { LifecycleControls } from './lifecycle-controls'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +43,17 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
   if (!prospect) notFound()
 
   const [site] = await db.select().from(sites).where(eq(sites.prospectId, id)).limit(1)
+  const [customer] = site
+    ? await db.select().from(customers).where(eq(customers.siteId, site.id)).limit(1)
+    : []
+  const [subscription] = customer
+    ? await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.customerId, customer.id))
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1)
+    : []
   const specs = await db
     .select()
     .from(siteSpecs)
@@ -125,8 +147,34 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                 </span>
               )
             ) : null}
-            <span className="text-zinc-400">Portal — arrives in Phase 6</span>
+            {customer ? (
+              <span className="space-x-1">
+                <Badge tone={customerTone(customer.status)} data-testid="customer-badge">
+                  customer {customer.status ?? '—'}
+                </Badge>
+                {subscription ? (
+                  <Badge
+                    tone={subscriptionTone(subscription.status)}
+                    data-testid="subscription-badge"
+                  >
+                    sub {subscription.status ?? '—'}
+                  </Badge>
+                ) : null}
+              </span>
+            ) : null}
           </p>
+          {site ? (
+            <p className="mt-2 text-sm">
+              <LifecycleControls
+                siteId={site.id}
+                siteStatus={site.status}
+                claimUrl={site.claimToken ? claimUrl(site.slug, site.claimToken) : null}
+                claimToken={site.claimToken}
+                portalUrl={site.portalToken ? portalUrl(site.slug, site.portalToken) : null}
+                portalToken={site.portalToken}
+              />
+            </p>
+          ) : null}
         </div>
         <ActionsBar
           prospectId={prospect.id}

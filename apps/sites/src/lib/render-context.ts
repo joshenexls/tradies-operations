@@ -40,6 +40,8 @@ export function buildHtmlRenderContext(input: {
   noindex: boolean
   facts: BusinessFacts
   claimToken?: string | null
+  /** sites.chatbotEnabled — the customer's portal toggle; defaults on. */
+  chatbotEnabled?: boolean
 }): HtmlRenderContext {
   return {
     resolveImage: (ref) => ({ src: `/pool/${encodeURIComponent(ref.pool)}/${ref.index}` }),
@@ -52,9 +54,10 @@ export function buildHtmlRenderContext(input: {
         }
       : null,
     jsonLd: buildJsonLdFromFacts(input.facts),
-    chatEmbed: chatWidgetEnabled()
-      ? { src: '/embed/v1.js', siteId: input.siteId, demo: input.noindex }
-      : null,
+    chatEmbed:
+      chatWidgetEnabled() && (input.chatbotEnabled ?? true)
+        ? { src: '/embed/v1.js', siteId: input.siteId, demo: input.noindex }
+        : null,
     privacyNoticeUrl: '/privacy-notice',
   }
 }

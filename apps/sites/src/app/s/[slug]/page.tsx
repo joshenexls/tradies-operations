@@ -110,6 +110,7 @@ export default async function TenantPage({
         noindex: site.noindex,
         facts: stored.doc.facts,
         claimToken: site.claimToken,
+        chatbotEnabled: site.chatbotEnabled,
       }),
     })
     const bodyAttrs = Object.entries(rendered.bodyAttrs)
@@ -148,7 +149,7 @@ export default async function TenantPage({
     <>
       <link rel="stylesheet" href={googleFontsUrl(spec.theme.fontPairId)} />
       {renderSite(spec, ctx)}
-      {chatWidgetEnabled() ? (
+      {chatWidgetEnabled() && site.chatbotEnabled ? (
         <script
           src="/embed/v1.js"
           data-site-id={site.id}

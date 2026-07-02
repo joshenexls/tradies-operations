@@ -2,7 +2,7 @@ import { schedules, task, wait } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { reviewRequests } from '@tradies/db'
 import type { Trade } from '@tradies/site-spec'
-import { resolveClients } from '../lib/clients'
+import { resolveClients, resolveStripe } from '../lib/clients'
 import { getDb } from '../lib/db'
 import { discoverCity } from '../pipeline/discover-city'
 import { dispatchOutreach, reconcileOutreach } from '../pipeline/dispatch-outreach'
@@ -10,6 +10,7 @@ import { enrichProspect } from '../pipeline/enrich-prospect'
 import { expirePreviews } from '../pipeline/expire-previews'
 import { generatePitchStep } from '../pipeline/generate-pitch-step'
 import { generateSiteSpecStep } from '../pipeline/generate-step'
+import { reconcileSubscriptions } from '../pipeline/reconcile-subscriptions'
 import { renderQa } from '../pipeline/render-qa'
 import { requestReview } from '../pipeline/request-review'
 import { scoreWebsite } from '../pipeline/score-website'
@@ -131,4 +132,11 @@ export const reconcileOutreachTask = schedules.task({
   id: 'reconcile_outreach',
   cron: '30 4 * * *',
   run: async () => reconcileOutreach(getDb()),
+})
+
+/** Safety net behind the Stripe webhooks: re-derive lapse/recovery daily. */
+export const reconcileSubscriptionsTask = schedules.task({
+  id: 'reconcile_subscriptions',
+  cron: '0 5 * * *',
+  run: async () => reconcileSubscriptions(getDb(), resolveStripe()),
 })

@@ -153,7 +153,11 @@ export const inboxThreadStatusEnum = pgEnum('inbox_thread_status', [
 ])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const leadSourceEnum = pgEnum('lead_source', ['chatbot', 'form'])
-export const leadNotificationChannelEnum = pgEnum('lead_notification_channel', ['whatsapp', 'sms'])
+export const leadNotificationChannelEnum = pgEnum('lead_notification_channel', [
+  'whatsapp',
+  'sms',
+  'email',
+])
 export const costCategoryEnum = pgEnum('cost_category', [
   'llm',
   'firecrawl',
@@ -312,6 +316,8 @@ export const sites = pgTable('sites', {
   previewExpiresAt: timestamp('preview_expires_at', { withTimezone: true }),
   /** Previews stay out of search indexes until the business claims the site. */
   noindex: boolean('noindex').default(true).notNull(),
+  /** Customer-facing portal toggle for the chat widget. */
+  chatbotEnabled: boolean('chatbot_enabled').default(true).notNull(),
   claimToken: text('claim_token').unique(),
   portalToken: text('portal_token').unique(),
   customDomain: text('custom_domain'),
@@ -467,14 +473,20 @@ export const customers = pgTable('customers', {
   prospectId: uuid('prospect_id')
     .notNull()
     .references(() => prospects.id),
+  // one customer per site — the claim flow upserts on this
   siteId: uuid('site_id')
     .notNull()
+    .unique()
     .references(() => sites.id),
   email: text('email'),
-  stripeCustomerId: text('stripe_customer_id'),
+  stripeCustomerId: text('stripe_customer_id').unique(),
   leadAlertPhone: text('lead_alert_phone'),
+  /** Where new-lead alert emails go; defaults to `email` at checkout completion. */
+  leadAlertEmail: text('lead_alert_email'),
+  /** Claim-form snapshot (confirmed business details, tosAcceptedAt). */
   intake: jsonb('intake'),
   gbpOauth: jsonb('gbp_oauth'),
+  /** Our lifecycle, kept as text: pending_checkout | active | canceled | erased. */
   status: text('status'),
   ...timestamps(),
 })
@@ -486,6 +498,7 @@ export const subscriptions = pgTable('subscriptions', {
     .references(() => customers.id),
   stripeSubscriptionId: text('stripe_subscription_id').unique(),
   priceId: text('price_id'),
+  /** Mirrors Stripe's vocabulary verbatim (active, past_due, canceled, …) — text on purpose. */
   status: text('status'),
   currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
   canceledAt: timestamp('canceled_at', { withTimezone: true }),
@@ -506,6 +519,8 @@ export const leads = pgTable('leads', {
   chatSessionId: uuid('chat_session_id'),
   notifiedAt: timestamp('notified_at', { withTimezone: true }),
   notificationChannel: leadNotificationChannelEnum('notification_channel'),
+  /** Customer marked this lead handled in the portal. */
+  actionedAt: timestamp('actioned_at', { withTimezone: true }),
   ...timestamps(),
 })
 

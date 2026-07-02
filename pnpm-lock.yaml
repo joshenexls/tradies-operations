@@ -242,6 +242,9 @@ importers:
       '@tradies/html-templates':
         specifier: workspace:*
         version: link:../../packages/html-templates
+      '@tradies/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@tradies/llm':
         specifier: workspace:*
         version: link:../../packages/llm

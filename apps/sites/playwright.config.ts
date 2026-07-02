@@ -7,6 +7,8 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './tests',
+  // the conversion suite has its own config (playwright.functional.config.ts)
+  testIgnore: /conversion\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,

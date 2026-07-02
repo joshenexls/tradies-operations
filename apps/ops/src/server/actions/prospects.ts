@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import type { Prospect } from '@tradies/db'
 import {
   chatSessions,
+  customers,
+  editRequests,
   events,
   leads,
   permissionEvents,
@@ -169,11 +171,42 @@ export async function eraseProspect(prospectId: string): Promise<SuppressResult>
     })
     .where(eq(prospects.id, prospectId))
 
+  const erased = ['prospect_pii', 'site_specs']
   const [site] = await db.select().from(sites).where(eq(sites.prospectId, prospectId)).limit(1)
   if (site) {
     await db.delete(leads).where(eq(leads.siteId, site.id))
     await db.delete(chatSessions).where(eq(chatSessions.siteId, site.id))
     await db.delete(previewVisits).where(eq(previewVisits.siteId, site.id))
+    erased.push('leads', 'chat_sessions', 'preview_visits')
+
+    // Claimed site: the customer record carries PII too.
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.siteId, site.id))
+      .limit(1)
+    if (customer) {
+      // edit requests are free-text and routinely quote names/phones — delete
+      await db.delete(editRequests).where(eq(editRequests.siteId, site.id))
+      // Strip contact details and the intake snapshot. The subscriptions rows
+      // and customers.stripeCustomerId are deliberately RETAINED: billing
+      // records are kept under the legal-obligation lawful basis (UK GDPR
+      // Art. 6(1)(c) — tax/accounting record-keeping). Deleting the customer
+      // on the Stripe side is a manual runbook step, not done here.
+      await db
+        .update(customers)
+        .set({
+          email: null,
+          leadAlertEmail: null,
+          leadAlertPhone: null,
+          intake: null,
+          status: 'erased',
+          updatedAt: new Date(),
+        })
+        .where(eq(customers.id, customer.id))
+      erased.push('edit_requests', 'customer_pii')
+    }
+
     await db
       .update(sites)
       .set({ status: 'disabled', updatedAt: new Date() })
@@ -186,7 +219,11 @@ export async function eraseProspect(prospectId: string): Promise<SuppressResult>
     prospectId,
     actor: 'operator',
     type: EVENT_TYPES.erasureCompleted,
-    payload: { erasedAt: new Date().toISOString() },
+    payload: {
+      erasedAt: new Date().toISOString(),
+      erased,
+      retained: ['subscriptions', 'customers.stripeCustomerId'],
+    },
   })
   revalidatePath('/pipeline')
   revalidatePath(`/prospects/${prospectId}`)

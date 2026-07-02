@@ -1,9 +1,10 @@
 import { asc, eq } from 'drizzle-orm'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { inboxMessages, inboxThreads, prospects } from '@tradies/db/schema'
+import { inboxMessages, inboxThreads, prospects, sites } from '@tradies/db/schema'
 import { getDb } from '@/lib/db'
 import { relativeTime } from '@/lib/format'
+import { claimUrl } from '@/lib/portal-url'
 import { isUuid } from '@/lib/uuid'
 import { Badge, entityTone } from '@/components/ui/badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -36,6 +37,12 @@ export default async function InboxThreadPage({
     .from(inboxMessages)
     .where(eq(inboxMessages.threadId, threadId))
     .orderBy(asc(inboxMessages.createdAt))
+  const [site] = await db
+    .select({ slug: sites.slug, claimToken: sites.claimToken })
+    .from(sites)
+    .where(eq(sites.prospectId, prospect.id))
+    .limit(1)
+  const siteClaimUrl = site?.claimToken ? claimUrl(site.slug, site.claimToken) : null
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -94,7 +101,11 @@ export default async function InboxThreadPage({
         </CardBody>
       </Card>
 
-      <ThreadActions threadId={thread.id} suppressed={prospect.suppressedAt !== null} />
+      <ThreadActions
+        threadId={thread.id}
+        suppressed={prospect.suppressedAt !== null}
+        claimUrl={siteClaimUrl}
+      />
     </div>
   )
 }

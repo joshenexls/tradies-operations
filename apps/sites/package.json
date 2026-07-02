@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:visual": "playwright test",
+    "test:e2e": "playwright test --config playwright.functional.config.ts",
     "lint": "eslint src",
     "seed": "tsx scripts/seed.ts"
   },
@@ -20,6 +21,7 @@
     "@tradies/engine": "workspace:*",
     "@tradies/fixtures": "workspace:*",
     "@tradies/html-templates": "workspace:*",
+    "@tradies/integrations": "workspace:*",
     "@tradies/llm": "workspace:*",
     "@tradies/site-spec": "workspace:*",
     "@tradies/templates": "workspace:*",

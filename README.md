@@ -5,12 +5,14 @@ good website for each from evidenced business facts, hosts it as a preview on
 our domain, pitches the business by compliant outreach, and converts them to a
 £19.99/mo subscription (site + AI chatbot + leads inbox + ongoing edits).
 
-**Status: Phases 1–5 built — ops desk, engine, discovery pipeline, HTML
-design systems + chatbot, hosting configs, and outreach (dry-run).**
+**Status: Phases 1–6 built — ops desk, engine, discovery pipeline, HTML
+design systems + chatbot, hosting configs, outreach (dry-run), and the full
+conversion stack (claim → Stripe → live → customer portal).**
 Everything runs offline by default (PGlite + fixtures + deterministic
 generators). Real services (Supabase, Claude, Trigger.dev, Apify, Firecrawl,
-Smartlead, Resend, Cloudflare) connect via env keys with no code changes —
-see `.env.example`; deployment runbook in `docs/deploy-cloudflare.md`.
+Smartlead, Resend, Stripe, Cloudflare) connect via env keys with no code
+changes — see `.env.example`; runbooks in `docs/deploy-cloudflare.md` and
+`docs/deploy-stripe.md`.
 
 ## Layout
 
@@ -72,6 +74,24 @@ reviews next to the site. Dispatch is dry-run by default
 Smartlead key it pushes to a per-(city,trade) campaign and webhooks drive
 statuses, replies land in the ops `/inbox`, and `/u/[token]` one-click
 unsubscribe suppresses globally.
+
+Conversion (Phase 6): every preview banner links `/claim/{token}` — a
+confirmation form + price block (£19.99/mo; the £149.99 setup fee display is
+env-driven with a `SETUP_FEE_PROMO` kill switch, waived via a pre-applied
+Stripe coupon) → Stripe Checkout → webhook flips the site **live** through
+the engine's single go-live path (noindex off at the middleware choke point,
+DB-driven and fail-closed; demo label off; prospect `converted`). Customers
+manage everything at `/portal/{token}`: leads inbox with "mark handled",
+change requests (feed the ops `/edits` queue, which regenerates through the
+same engine path), chatbot toggle, lead-alert email, and Stripe billing
+portal. New leads trigger an email alert via Resend. A daily
+`reconcile_subscriptions` cron lapses sites past
+`currentPeriodEnd + BILLING_GRACE_DAYS` and republishes recovered ones. Ops
+gains `/customers` (MRR view) and Publish/Unpublish/Disable overrides —
+every transition audited in the events timeline. The whole chain runs
+offline (`pnpm --filter @tradies/sites test:e2e`); see
+`docs/deploy-stripe.md` for the go-live checklist including the
+solicitor-review items.
 
 ## Discovery (amended Phase 3)
 

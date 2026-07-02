@@ -14,6 +14,16 @@ export const EVENT_TYPES = {
   outreachDryRun: 'outreach_dry_run',
   outreachBlocked: 'outreach_blocked',
   previewExpired: 'preview_expired',
+  claimStarted: 'claim_started',
+  checkoutCompleted: 'checkout_completed',
+  sitePublished: 'site_published',
+  siteUnpublished: 'site_unpublished',
+  siteDisabled: 'site_disabled',
+  subscriptionUpdated: 'subscription_updated',
+  editRequestCreated: 'edit_request_created',
+  editRequestResolved: 'edit_request_resolved',
+  leadAlertSent: 'lead_alert_sent',
+  portalSettingChanged: 'portal_setting_changed',
 } as const
 
 export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES]

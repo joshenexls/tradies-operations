@@ -18,3 +18,12 @@ test('inbox lists the seeded thread and opens the conversation', async ({ page }
   )
   await expect(page.getByRole('button', { name: 'Send reply' })).toBeVisible()
 })
+
+test('insert claim link appends the claim URL to the reply draft', async ({ page }) => {
+  await page.goto('/inbox')
+  await page.getByTestId('inbox-thread-row').click()
+  await page.getByRole('button', { name: 'Insert claim link' }).click()
+  await expect(page.getByLabel('Reply')).toHaveValue(
+    /You can claim your website and go live here: .+\/claim\//,
+  )
+})

@@ -100,3 +100,6 @@ export function resolveResendMailer(env: NodeJS.ProcessEnv = process.env): Resen
   if (env.RESEND_API_KEY) return new RealResendMailer({ apiKey: env.RESEND_API_KEY })
   return new FixtureResendMailer()
 }
+
+/** Real Stripe only when STRIPE_SECRET_KEY is present — the integrations resolver decides. */
+export { resolveStripe } from '@tradies/integrations'

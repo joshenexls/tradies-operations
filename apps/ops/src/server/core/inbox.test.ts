@@ -165,6 +165,28 @@ describe('handleInboundEmail', () => {
     expect(after?.status).toBe('suppressed')
   })
 
+  it("moves a 'contacted' prospect to 'replied' but never demotes a later status", async () => {
+    const { prospect } = await seedThread('statusflip')
+    const rawDir = await mkdtemp(path.join(os.tmpdir(), 'raw-mail-'))
+    const email = {
+      toPlusToken: `prospect-${prospect.id}`,
+      from: 'sam@statusflip.example',
+      subject: 'Re: A new website',
+      text: 'Looks great!',
+    }
+
+    await db.update(prospects).set({ status: 'contacted' }).where(eq(prospects.id, prospect.id))
+    await handleInboundEmail(db, email, { rawJson: '{}', rawDir })
+    const [afterContacted] = await db.select().from(prospects).where(eq(prospects.id, prospect.id))
+    expect(afterContacted?.status).toBe('replied')
+
+    // a converted customer replying by email must stay converted
+    await db.update(prospects).set({ status: 'converted' }).where(eq(prospects.id, prospect.id))
+    await handleInboundEmail(db, email, { rawJson: '{}', rawDir })
+    const [afterConverted] = await db.select().from(prospects).where(eq(prospects.id, prospect.id))
+    expect(afterConverted?.status).toBe('converted')
+  })
+
   it('ignores mail with no matching prospect token', async () => {
     const rawDir = await mkdtemp(path.join(os.tmpdir(), 'raw-mail-'))
     const result = await handleInboundEmail(

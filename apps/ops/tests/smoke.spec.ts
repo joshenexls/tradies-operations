@@ -55,6 +55,21 @@ test('review batch shows pending cards and approving flips request + prospect', 
   await expect(page.getByTestId('status-badge')).toHaveText('approved')
 })
 
+test('customers screen renders with the empty book (seed has no customers)', async ({ page }) => {
+  await page.goto('/customers')
+  await expect(page.getByRole('heading', { name: 'Customers' })).toBeVisible()
+  await expect(page.getByTestId('customer-stats')).toContainText('0 active subscriptions')
+  await expect(page.getByTestId('customer-stats')).toContainText('£0.00 MRR')
+  await expect(page.getByText('No customers yet')).toBeVisible()
+})
+
+test('edits screen renders with an empty queue (seed has no edit requests)', async ({ page }) => {
+  await page.goto('/edits')
+  await expect(page.getByRole('heading', { name: 'Edit requests' })).toBeVisible()
+  await expect(page.getByText('No open edit requests')).toBeVisible()
+  await expect(page.getByText('Recently resolved (0)')).toBeVisible()
+})
+
 test('entity control classifies a prospect and the audit trail shows it', async ({ page }) => {
   // Goyt Valley Builders seeds as entityType 'unknown'
   await page.goto('/pipeline?city=Stockport')

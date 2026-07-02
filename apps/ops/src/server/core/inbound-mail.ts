@@ -65,7 +65,9 @@ export async function handleInboundEmail(
       sourceChannel: 'email_reply',
       email: email.from,
     })
-  } else {
+  } else if (prospect.status === 'contacted') {
+    // a reply moves the pipeline forward, but never demotes a later status
+    // (claimed/converted customers also reply by email)
     await db
       .update(prospects)
       .set({ status: 'replied', updatedAt: new Date() })

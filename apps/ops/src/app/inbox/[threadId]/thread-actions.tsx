@@ -8,7 +8,16 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardBody } from '@/components/ui/card'
 
-export function ThreadActions({ threadId, suppressed }: { threadId: string; suppressed: boolean }) {
+export function ThreadActions({
+  threadId,
+  suppressed,
+  claimUrl,
+}: {
+  threadId: string
+  suppressed: boolean
+  /** Absolute claim URL for the prospect's site — null hides the insert button. */
+  claimUrl?: string | null
+}) {
   const router = useRouter()
   const [body, setBody] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +44,23 @@ export function ThreadActions({ threadId, suppressed }: { threadId: string; supp
           </p>
         ) : (
           <div>
-            <Label htmlFor={`reply-${threadId}`}>Reply</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor={`reply-${threadId}`}>Reply</Label>
+              {claimUrl ? (
+                <Button
+                  variant="ghost"
+                  disabled={pending}
+                  onClick={() =>
+                    setBody(
+                      (current) =>
+                        `${current}\n\nYou can claim your website and go live here: ${claimUrl}\n`,
+                    )
+                  }
+                >
+                  Insert claim link
+                </Button>
+              ) : null}
+            </div>
             <Textarea
               id={`reply-${threadId}`}
               className="mt-1"

@@ -6,6 +6,8 @@ import { prospectToFacts } from '@tradies/engine'
 import type { ChatMessage } from '@tradies/llm'
 import { getDb } from '@/lib/db'
 import { getChatRateLimiter, resolveChatResponder } from '@/lib/chat'
+import { scheduleLeadAlert } from '@/lib/lead-alerts'
+import { resolveMailer } from '@/lib/mailer'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +55,10 @@ export async function POST(request: NextRequest) {
   const [site] = await db.select().from(sites).where(eq(sites.id, siteId)).limit(1)
   if (!site || site.status === 'expired' || site.status === 'disabled') {
     return NextResponse.json({ error: 'unknown site' }, { status: 404 })
+  }
+  // the customer's portal toggle — a disabled widget answers nobody
+  if (!site.chatbotEnabled) {
+    return NextResponse.json({ error: 'chat disabled' }, { status: 404 })
   }
   const [prospect] = await db
     .select()
@@ -105,16 +111,21 @@ export async function POST(request: NextRequest) {
   }
 
   if (result.lead && (result.lead.phone || result.lead.email)) {
-    await db.insert(leads).values({
-      siteId: site.id,
-      source: 'chatbot',
-      name: result.lead.name ?? null,
-      phone: result.lead.phone ?? null,
-      email: result.lead.email ?? null,
-      message: result.lead.message ?? null,
-      chatSessionId,
-    })
-    // notify_lead (WhatsApp) attaches here in the customer-dashboard round
+    const [lead] = await db
+      .insert(leads)
+      .values({
+        siteId: site.id,
+        source: 'chatbot',
+        name: result.lead.name ?? null,
+        phone: result.lead.phone ?? null,
+        email: result.lead.email ?? null,
+        message: result.lead.message ?? null,
+        chatSessionId,
+      })
+      .returning()
+    if (lead) {
+      scheduleLeadAlert(db, resolveMailer(), lead.id, { origin: request.nextUrl.origin })
+    }
   }
 
   return NextResponse.json({ reply: result.reply })
