@@ -8,6 +8,7 @@
     "./schema": "./src/schema.ts",
     "./pglite": "./src/pglite.ts",
     "./migrate": "./src/migrate.ts",
+    "./health": "./src/health.ts",
     "./test-harness": "./src/test-harness.ts"
   },
   "scripts": {

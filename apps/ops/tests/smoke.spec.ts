@@ -70,6 +70,18 @@ test('edits screen renders with an empty queue (seed has no edit requests)', asy
   await expect(page.getByText('Recently resolved (0)')).toBeVisible()
 })
 
+test('status board renders behind auth with the live readiness surfaces', async ({ page }) => {
+  await page.goto('/status')
+  await expect(page.getByRole('heading', { name: 'Status' })).toBeVisible()
+  // dev/fixture env is non-production, so nothing is flagged critical
+  await expect(page.getByTestId('status-nocriticals')).toBeVisible()
+  // the ops worker card shows a live DB ping and a migration count against the journal
+  await expect(page.getByText('DB up')).toBeVisible()
+  await expect(page.getByText(/migrations \d+\/\d+/)).toBeVisible()
+  // every service's real-vs-fixture mode is listed
+  await expect(page.getByTestId('status-service-row').first()).toBeVisible()
+})
+
 test('entity control classifies a prospect and the audit trail shows it', async ({ page }) => {
   // Goyt Valley Builders seeds as entityType 'unknown'
   await page.goto('/pipeline?city=Stockport')

@@ -40,8 +40,16 @@ export function verifyUnsubscribeToken(token: string, secret: string): string | 
 /**
  * Shared secret resolution so jobs (token minting) and ops (token
  * verification) can never disagree in dev. PRODUCTION MUST SET
- * UNSUBSCRIBE_SECRET — the fallback is not a real credential.
+ * UNSUBSCRIBE_SECRET — a guessable one-click-unsubscribe HMAC is a PECR
+ * exposure, so we FAIL LOUD in production rather than silently use the dev
+ * default (dev/tests keep the fallback).
  */
 export function resolveUnsubscribeSecret(env: NodeJS.ProcessEnv = process.env): string {
-  return env.UNSUBSCRIBE_SECRET ?? 'tradies-dev-unsubscribe-secret'
+  if (env.UNSUBSCRIBE_SECRET) return env.UNSUBSCRIBE_SECRET
+  if (env.NODE_ENV === 'production') {
+    throw new Error(
+      'UNSUBSCRIBE_SECRET is required in production (PECR one-click-unsubscribe HMAC must not be the guessable dev default).',
+    )
+  }
+  return 'tradies-dev-unsubscribe-secret'
 }

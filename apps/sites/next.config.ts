@@ -2,6 +2,7 @@ import type { NextConfig } from 'next'
 
 const config: NextConfig = {
   transpilePackages: [
+    '@tradies/config',
     '@tradies/site-spec',
     '@tradies/templates',
     '@tradies/db',

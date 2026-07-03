@@ -50,4 +50,17 @@ describe('unsubscribe tokens', () => {
       's3cret',
     )
   })
+
+  it('FAILS LOUD in production when UNSUBSCRIBE_SECRET is unset (PECR)', () => {
+    expect(() => resolveUnsubscribeSecret({ NODE_ENV: 'production' } as NodeJS.ProcessEnv)).toThrow(
+      /UNSUBSCRIBE_SECRET is required in production/,
+    )
+    // a real secret in prod is fine
+    expect(
+      resolveUnsubscribeSecret({
+        NODE_ENV: 'production',
+        UNSUBSCRIBE_SECRET: 'real',
+      } as NodeJS.ProcessEnv),
+    ).toBe('real')
+  })
 })

@@ -9,7 +9,7 @@ import { buildSiteLocation, parseStoredSpec, type StoredSpec } from '@tradies/si
 import { renderHtmlSite } from '@tradies/html-templates'
 import { renderSite } from '@tradies/templates'
 import { getDb } from '@/lib/db'
-import { googleFontsUrl } from '@/lib/fonts'
+import { selfHostedFontsHref } from '@/lib/fonts'
 import { logPreviewVisit } from '@/lib/preview-visits'
 import {
   buildHtmlRenderContext,
@@ -169,7 +169,7 @@ export default async function TenantPage({
   })
   return (
     <>
-      <link rel="stylesheet" href={googleFontsUrl(spec.theme.fontPairId)} />
+      <link rel="stylesheet" href={selfHostedFontsHref()} />
       {renderSite(spec, ctx)}
       {chatWidgetEnabled() && site.chatbotEnabled ? (
         <script

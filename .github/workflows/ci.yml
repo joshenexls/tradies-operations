@@ -111,3 +111,70 @@ jobs:
           name: playwright-report
           path: apps/sites/playwright-report/
           retention-days: 7
+
+  build-cf:
+    # Cloudflare Worker build gate. Compiles both apps the way deploy day does
+    # (@opennextjs/cloudflare → .open-next/worker.js) and then asserts the
+    # bundle is PGlite-free. PGlite is the offline/test in-memory Postgres; if
+    # it ever gets bundled into the Worker it drags in pglite.wasm/initdb.wasm,
+    # which bloats past the Worker size limit and breaks the deploy. Catch it
+    # here, not on the founder's deploy day.
+    name: Cloudflare Worker build + PGlite/wasm guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build sites Worker (build:cf)
+        run: pnpm --filter @tradies/sites build:cf
+      - name: Build ops Worker (build:cf)
+        run: pnpm --filter @tradies/ops build:cf
+      - name: Assert no PGlite / .wasm in the Worker bundles
+        run: |
+          set -euo pipefail
+          fail=0
+          for app in sites ops; do
+            dir="apps/$app/.open-next"
+            echo "== scanning $dir =="
+            if [ ! -d "$dir" ]; then
+              echo "::error::$dir is missing — build:cf produced no Worker bundle"
+              fail=1
+              continue
+            fi
+            # (1) Any .wasm in the Worker output = a wasm dep got bundled. PGlite
+            #     ships pglite.wasm + initdb.wasm; a clean OpenNext bundle has none.
+            wasm="$(find "$dir" -type f -name '*.wasm' || true)"
+            if [ -n "$wasm" ]; then
+              echo "::error::$app: .wasm file(s) found in the Worker bundle:"
+              echo "$wasm"
+              fail=1
+            fi
+            # (2) PGlite runtime asset loaders. These literal strings only appear if
+            #     PGlite's actual code was bundled — a clean build never references them.
+            if grep -rlE 'initdb\.wasm|pglite\.wasm|pglite\.data' "$dir" >/dev/null 2>&1; then
+              echo "::error::$app: PGlite wasm/data asset references found in the Worker bundle:"
+              grep -rlE 'initdb\.wasm|pglite\.wasm|pglite\.data' "$dir" || true
+              fail=1
+            fi
+            # (3) @electric-sql/pglite bundled as code. A clean build references it ONLY
+            #     inside Next's serverExternalPackages list — the directive that KEEPS it
+            #     OUT of the Worker bundle. Any other occurrence means it was bundled in.
+            bundled="$(grep -rohE '.{35}@electric-sql/pglite' "$dir" 2>/dev/null | grep -v 'serverExternalPackages' || true)"
+            if [ -n "$bundled" ]; then
+              echo "::error::$app: @electric-sql/pglite bundled outside serverExternalPackages:"
+              echo "$bundled"
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo ""
+            echo "PGlite/.wasm regression: the Cloudflare Worker must stay PGlite-free."
+            echo "createDb uses PGlite only offline; production runs on DATABASE_URL and"
+            echo "the Worker bundle must not contain PGlite or the deploy will break."
+            exit 1
+          fi
+          echo "OK — no PGlite / .wasm in either Worker bundle."

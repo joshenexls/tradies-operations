@@ -67,7 +67,8 @@ All social-proof text is code-built, never LLM-authored — no rating or
 review copy is ever fabricated, and JSON-LD emits no `aggregateRating`
 (DMCC). Imagery comes from the `/pool` route: deterministic trade-tuned
 placeholder art offline, real curated photography when `IMAGE_POOL_SOURCE=r2`
-+ a Pexels-sourced R2 pool are wired (`scripts/curate-pool.ts`).
+
+- a Pexels-sourced R2 pool are wired (`scripts/curate-pool.ts`).
 
 Every generated site carries the lean chatbot widget (`/embed/v1.js` →
 `POST /api/chat`): Claude Haiku answering only from the prospect's facts

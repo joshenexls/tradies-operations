@@ -14,6 +14,8 @@
     "test:visual": "turbo run test:visual",
     "test:compliance": "turbo run test:compliance",
     "gen": "pnpm --filter @tradies/cli gen",
+    "fetch:fonts": "pnpm --filter @tradies/sites exec tsx ../../scripts/fetch-fonts.ts",
+    "preflight": "pnpm --filter @tradies/sites exec tsx ../../scripts/preflight.ts",
     "format": "prettier --write \"**/*.{ts,tsx,md,json,yaml,yml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md,json,yaml,yml,css}\""
   },

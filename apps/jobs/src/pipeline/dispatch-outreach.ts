@@ -50,6 +50,16 @@ export async function dispatchOutreach(
   campaignId?: string
 }> {
   const dryRun = input.dryRun ?? process.env.OUTREACH_DRY_RUN !== '0'
+  // FAIL LOUD: never send a real cold email carrying a placeholder company
+  // number / registered office (a PECR + Companies-Act exposure). Dry-run and
+  // non-production are unaffected.
+  if (!dryRun && process.env.NODE_ENV === 'production') {
+    if (!process.env.OPERATOR_COMPANY_NUMBER || !process.env.OPERATOR_REGISTERED_OFFICE) {
+      throw new Error(
+        'Refusing to send real cold email: OPERATOR_COMPANY_NUMBER and OPERATOR_REGISTERED_OFFICE must be set (the legal footer cannot carry placeholder identity).',
+      )
+    }
+  }
   const [prospect] = await db
     .select()
     .from(prospects)

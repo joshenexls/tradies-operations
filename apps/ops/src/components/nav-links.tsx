@@ -10,6 +10,7 @@ const LINKS = [
   { href: '/customers', label: 'Customers' },
   { href: '/edits', label: 'Edits' },
   { href: '/library', label: 'Library' },
+  { href: '/status', label: 'Status' },
 ] as const
 
 export function NavLinks({ inboxCount, editsCount }: { inboxCount: number; editsCount: number }) {

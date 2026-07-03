@@ -393,6 +393,14 @@ export class RealStripeClient implements StripeClient {
 /** Real Stripe only when a key is present — every other environment stays offline. */
 export function resolveStripe(env: NodeJS.ProcessEnv = process.env): StripeClient {
   if (env.STRIPE_SECRET_KEY) {
+    if (!env.STRIPE_WEBHOOK_SECRET) {
+      // loud but non-fatal: checkout still works; without the secret every
+      // webhook 500s (verifyWebhook throws), so paid sites never publish. The
+      // readiness/health surfaces flag this red — this makes it visible in logs.
+      console.error(
+        '[stripe] CRITICAL: STRIPE_SECRET_KEY is set but STRIPE_WEBHOOK_SECRET is not — webhooks will fail signature verification and paid sites will never go live.',
+      )
+    }
     return new RealStripeClient({
       apiKey: env.STRIPE_SECRET_KEY,
       webhookSecret: env.STRIPE_WEBHOOK_SECRET,
