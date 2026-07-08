@@ -68,6 +68,8 @@ describe('relations', () => {
     })
     expect(found?.site?.slug).toBe('joins-ltd')
     expect(found?.siteSpecs).toHaveLength(1)
-    expect(found?.siteSpecs[0]?.spec.identity.businessName).toBe('Smith & Sons Plumbing')
+    const storedSpec = found?.siteSpecs[0]?.spec
+    if (!storedSpec || 'kind' in storedSpec) throw new Error('expected a component spec')
+    expect(storedSpec.identity.businessName).toBe('Smith & Sons Plumbing')
   })
 })

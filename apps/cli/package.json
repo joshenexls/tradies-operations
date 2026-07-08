@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "@tradies/db": "workspace:*",
+    "@tradies/engine": "workspace:*",
+    "@tradies/html-templates": "workspace:*",
     "@tradies/llm": "workspace:*",
     "@tradies/site-spec": "workspace:*",
     "@tradies/templates": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "nanoid": "^5.1.16",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

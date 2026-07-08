@@ -8,6 +8,27 @@
       "when": 1782945282309,
       "tag": "0000_purple_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782951452042,
+      "tag": "0001_massive_franklin_richards",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782981189333,
+      "tag": "0002_fair_dagger",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783000493177,
+      "tag": "0003_public_frog_thor",
+      "breakpoints": true
     }
   ]
 }

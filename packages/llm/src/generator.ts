@@ -7,11 +7,13 @@ export type GenerationInput = {
   feedback?: string
 }
 
+export type TokenUsage = { inputTokens: number; outputTokens: number }
+
 export type GenerationResult = {
   /** Raw candidate spec — callers must run siteSpecSchema + FACT-GUARD before use. */
   candidate: unknown
   model: string
-  usage: { inputTokens: number; outputTokens: number }
+  usage: TokenUsage
 }
 
 export interface SiteSpecGenerator {

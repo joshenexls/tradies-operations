@@ -5,6 +5,7 @@ import {
   check,
   doublePrecision,
   integer,
+  index,
   jsonb,
   numeric,
   pgEnum,
@@ -17,8 +18,10 @@ import {
 import { TRADES } from '@tradies/site-spec'
 import type {
   BusinessFacts,
+  HtmlSpecDoc,
   SectionKind,
   SiteSpec,
+  SlotManifest,
   StylePreset,
   ValidationReport,
 } from '@tradies/site-spec'
@@ -62,6 +65,12 @@ export const prospectStatusEnum = pgEnum('prospect_status', [
 ])
 export const prospectSegmentEnum = pgEnum('prospect_segment', ['no_site', 'bad_site', 'fine'])
 export const stylePresetStatusEnum = pgEnum('style_preset_status', ['active', 'draft', 'retired'])
+export const stylePresetKindEnum = pgEnum('style_preset_kind', ['component', 'html'])
+export const designTemplateStatusEnum = pgEnum('design_template_status', [
+  'draft',
+  'active',
+  'retired',
+])
 export const specGeneratedByEnum = pgEnum('spec_generated_by', ['llm', 'operator_edit'])
 export const siteStatusEnum = pgEnum('site_status', [
   'preview',
@@ -144,7 +153,11 @@ export const inboxThreadStatusEnum = pgEnum('inbox_thread_status', [
 ])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const leadSourceEnum = pgEnum('lead_source', ['chatbot', 'form'])
-export const leadNotificationChannelEnum = pgEnum('lead_notification_channel', ['whatsapp', 'sms'])
+export const leadNotificationChannelEnum = pgEnum('lead_notification_channel', [
+  'whatsapp',
+  'sms',
+  'email',
+])
 export const costCategoryEnum = pgEnum('cost_category', [
   'llm',
   'firecrawl',
@@ -158,34 +171,82 @@ export const eventActorEnum = pgEnum('event_actor', ['system', 'operator', 'pros
 
 // ── tables ─────────────────────────────────────────────────────────────────
 
-export const prospects = pgTable('prospects', {
+export const prospects = pgTable(
+  'prospects',
+  {
+    id: id(),
+    /** Google place id as returned by the Apify Maps scraper — stable dedupe key. */
+    placeId: text('place_id').unique(),
+    hasWebsite: boolean('has_website'),
+    isFacebookOnly: boolean('is_facebook_only'),
+    overtureId: text('overture_id'),
+    businessName: text('business_name'),
+    address: text('address'),
+    postcode: text('postcode'),
+    city: text('city'),
+    /** Written from Apify discovery payloads or operator input. */
+    phone: text('phone'),
+    /** normalizePhone(phone) — secondary dedupe key across discovery runs. */
+    normalizedPhone: text('normalized_phone'),
+    websiteUrl: text('website_url'),
+    trade: tradeEnum('trade'),
+    source: prospectSourceEnum('source'),
+    entityType: entityTypeEnum('entity_type').default('unknown').notNull(),
+    companiesHouseNumber: text('companies_house_number'),
+    entityCheckedAt: timestamp('entity_checked_at', { withTimezone: true }),
+    status: prospectStatusEnum('status').default('discovered').notNull(),
+    segment: prospectSegmentEnum('segment'),
+    websiteHealthScore: integer('website_health_score'),
+    extractedProfile: jsonb('extracted_profile').$type<Partial<BusinessFacts>>(),
+    /** Per-field source trail (which upstream produced each stored fact). */
+    dataProvenance: jsonb('data_provenance').$type<Record<string, unknown>>(),
+    /** Latest raw Apify item for this prospect — audit trail for disputed fields. */
+    apifyRaw: jsonb('apify_raw'),
+    suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [index('prospects_normalized_phone_idx').on(t.normalizedPhone)],
+)
+
+export const designTemplates = pgTable('design_templates', {
   id: id(),
-  /** THE ONLY Places-derived identifier we may store (Google ToS). */
-  placeId: text('place_id').unique(),
-  hasWebsite: boolean('has_website'),
-  isFacebookOnly: boolean('is_facebook_only'),
-  overtureId: text('overture_id'),
-  businessName: text('business_name'),
-  address: text('address'),
-  postcode: text('postcode'),
-  city: text('city'),
-  /** Only ever written from Overture/operator — never from Places. */
-  phone: text('phone'),
-  websiteUrl: text('website_url'),
-  trade: tradeEnum('trade'),
-  source: prospectSourceEnum('source'),
-  entityType: entityTypeEnum('entity_type').default('unknown').notNull(),
-  companiesHouseNumber: text('companies_house_number'),
-  entityCheckedAt: timestamp('entity_checked_at', { withTimezone: true }),
-  status: prospectStatusEnum('status').default('discovered').notNull(),
-  segment: prospectSegmentEnum('segment'),
-  websiteHealthScore: integer('website_health_score'),
-  extractedProfile: jsonb('extracted_profile').$type<Partial<BusinessFacts>>(),
-  /** Per-field source trail (which upstream produced each stored fact). */
-  dataProvenance: jsonb('data_provenance').$type<Record<string, unknown>>(),
-  suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+  name: text('name').notNull(),
+  /** The uploaded generic lander — the structural skeleton for this system. */
+  rawHtml: text('raw_html').notNull(),
+  /** Optional uploaded components/style-system file (reference only). */
+  componentsHtml: text('components_html'),
+  annotatedHtml: text('annotated_html'),
+  slotManifest: jsonb('slot_manifest').$type<SlotManifest>(),
+  tokens: jsonb('tokens').$type<{ palette: string[]; fonts: string[] }>(),
+  /** The lander's original slot texts — register/length exemplars for generation. */
+  sampleTexts: jsonb('sample_texts').$type<Record<string, string>>(),
+  sanitizationReport: jsonb('sanitization_report'),
+  validationReport: jsonb('validation_report').$type<{ ok: boolean; problems: string[] }>(),
+  ingestModel: text('ingest_model'),
+  ingestUsage: jsonb('ingest_usage'),
+  status: designTemplateStatusEnum('status').default('draft').notNull(),
+  createdBy: text('created_by'),
   ...timestamps(),
 })
+
+export const pitches = pgTable(
+  'pitches',
+  {
+    id: id(),
+    prospectId: uuid('prospect_id')
+      .notNull()
+      .references(() => prospects.id),
+    version: integer('version').notNull(),
+    subject: text('subject').notNull(),
+    /** Body WITHOUT the legal footer — the footer is appended in code at send time. */
+    body: text('body').notNull(),
+    previewUrl: text('preview_url'),
+    model: text('model'),
+    promptVersion: text('prompt_version'),
+    ...timestamps(),
+  },
+  (t) => [unique('pitches_prospect_id_version_unique').on(t.prospectId, t.version)],
+)
 
 export const stylePresets = pgTable(
   'style_presets',
@@ -205,6 +266,8 @@ export const stylePresets = pgTable(
     imageryPool: text('imagery_pool'),
     tone: text('tone').$type<StylePreset['tone']>(),
     status: stylePresetStatusEnum('status').default('active').notNull(),
+    kind: stylePresetKindEnum('kind').default('component').notNull(),
+    designTemplateId: uuid('design_template_id').references(() => designTemplates.id),
     thumbnailRef: text('thumbnail_ref'),
     createdBy: text('created_by'),
     ...timestamps(),
@@ -224,9 +287,10 @@ export const siteSpecs = pgTable(
       .notNull()
       .references(() => prospects.id),
     version: integer('version').notNull(),
-    spec: jsonb('spec').$type<SiteSpec>().notNull(),
+    spec: jsonb('spec').$type<SiteSpec | HtmlSpecDoc>().notNull(),
     templateId: text('template_id'),
     stylePresetId: uuid('style_preset_id').references(() => stylePresets.id),
+    designTemplateId: uuid('design_template_id').references(() => designTemplates.id),
     model: text('model'),
     promptVersion: text('prompt_version'),
     validationReport: jsonb('validation_report').$type<{
@@ -252,6 +316,8 @@ export const sites = pgTable('sites', {
   previewExpiresAt: timestamp('preview_expires_at', { withTimezone: true }),
   /** Previews stay out of search indexes until the business claims the site. */
   noindex: boolean('noindex').default(true).notNull(),
+  /** Customer-facing portal toggle for the chat widget. */
+  chatbotEnabled: boolean('chatbot_enabled').default(true).notNull(),
   claimToken: text('claim_token').unique(),
   portalToken: text('portal_token').unique(),
   customDomain: text('custom_domain'),
@@ -407,14 +473,20 @@ export const customers = pgTable('customers', {
   prospectId: uuid('prospect_id')
     .notNull()
     .references(() => prospects.id),
+  // one customer per site — the claim flow upserts on this
   siteId: uuid('site_id')
     .notNull()
+    .unique()
     .references(() => sites.id),
   email: text('email'),
-  stripeCustomerId: text('stripe_customer_id'),
+  stripeCustomerId: text('stripe_customer_id').unique(),
   leadAlertPhone: text('lead_alert_phone'),
+  /** Where new-lead alert emails go; defaults to `email` at checkout completion. */
+  leadAlertEmail: text('lead_alert_email'),
+  /** Claim-form snapshot (confirmed business details, tosAcceptedAt). */
   intake: jsonb('intake'),
   gbpOauth: jsonb('gbp_oauth'),
+  /** Our lifecycle, kept as text: pending_checkout | active | canceled | erased. */
   status: text('status'),
   ...timestamps(),
 })
@@ -426,6 +498,7 @@ export const subscriptions = pgTable('subscriptions', {
     .references(() => customers.id),
   stripeSubscriptionId: text('stripe_subscription_id').unique(),
   priceId: text('price_id'),
+  /** Mirrors Stripe's vocabulary verbatim (active, past_due, canceled, …) — text on purpose. */
   status: text('status'),
   currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
   canceledAt: timestamp('canceled_at', { withTimezone: true }),
@@ -446,6 +519,8 @@ export const leads = pgTable('leads', {
   chatSessionId: uuid('chat_session_id'),
   notifiedAt: timestamp('notified_at', { withTimezone: true }),
   notificationChannel: leadNotificationChannelEnum('notification_channel'),
+  /** Customer marked this lead handled in the portal. */
+  actionedAt: timestamp('actioned_at', { withTimezone: true }),
   ...timestamps(),
 })
 
@@ -508,10 +583,12 @@ export const discoveryRuns = pgTable('discovery_runs', {
   trade: tradeEnum('trade'),
   query: jsonb('query'),
   resultsCount: integer('results_count'),
+  apifyRunId: text('apify_run_id'),
   runAt: timestamp('run_at', { withTimezone: true }),
   ...timestamps(),
 })
 
+/** LEGACY: unused since the Phase 3 Apify amendment; retained to avoid a destructive migration. */
 export const overturePlaces = pgTable('overture_places', {
   id: id(),
   overtureId: text('overture_id').unique(),

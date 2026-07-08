@@ -2,6 +2,8 @@ import { eq } from 'drizzle-orm'
 import { NextResponse, type NextRequest } from 'next/server'
 import { leads, sites } from '@tradies/db/schema'
 import { getDb } from '@/lib/db'
+import { scheduleLeadAlert } from '@/lib/lead-alerts'
+import { resolveMailer } from '@/lib/mailer'
 
 export async function POST(request: NextRequest) {
   const siteId = request.nextUrl.searchParams.get('site')
@@ -20,15 +22,20 @@ export async function POST(request: NextRequest) {
   const [site] = await db.select().from(sites).where(eq(sites.id, siteId)).limit(1)
   if (!site) return NextResponse.json({ error: 'unknown site' }, { status: 404 })
 
-  await db.insert(leads).values({
-    siteId: site.id,
-    source: 'form',
-    name,
-    phone: phone || null,
-    email,
-    message: message || null,
-  })
-  // notify_lead (WhatsApp/SMS) attaches here in Phase 7
+  const [lead] = await db
+    .insert(leads)
+    .values({
+      siteId: site.id,
+      source: 'form',
+      name,
+      phone: phone || null,
+      email,
+      message: message || null,
+    })
+    .returning()
+  if (lead) {
+    scheduleLeadAlert(db, resolveMailer(), lead.id, { origin: request.nextUrl.origin })
+  }
 
   const referer = request.headers.get('referer')
   const back = referer ? new URL(referer) : new URL('/', request.nextUrl.origin)

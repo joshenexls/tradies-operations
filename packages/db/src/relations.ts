@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm'
 import {
+  customers,
   editRequests,
   events,
   inboxMessages,
@@ -11,6 +12,7 @@ import {
   sites,
   siteSpecs,
   stylePresets,
+  subscriptions,
 } from './schema'
 
 export const prospectsRelations = relations(prospects, ({ one, many }) => ({
@@ -34,6 +36,17 @@ export const sitesRelations = relations(sites, ({ one, many }) => ({
   leads: many(leads),
   editRequests: many(editRequests),
   events: many(events),
+  customer: one(customers),
+}))
+
+export const customersRelations = relations(customers, ({ one, many }) => ({
+  prospect: one(prospects, { fields: [customers.prospectId], references: [prospects.id] }),
+  site: one(sites, { fields: [customers.siteId], references: [sites.id] }),
+  subscriptions: many(subscriptions),
+}))
+
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+  customer: one(customers, { fields: [subscriptions.customerId], references: [customers.id] }),
 }))
 
 export const leadsRelations = relations(leads, ({ one }) => ({

@@ -1,0 +1,53 @@
+{
+  "$comment": "Curated imagery pools — one per seed style preset imageryPool (packages/templates/src/seed-presets.ts). Consumed by scripts/curate-pool.ts; images land in pool-out/{pool}/{index}.jpg for upload to R2 (docs/deploy-cloudflare.md).",
+  "pools": {
+    "trades-heritage": {
+      "queries": [
+        "carpenter traditional workshop",
+        "builder bricklaying craftsmanship",
+        "joinery hand tools workbench"
+      ],
+      "count": 6
+    },
+    "trades-modern": {
+      "queries": [
+        "tradesperson modern renovation",
+        "construction worker interior fit out",
+        "home improvement contractor tools"
+      ],
+      "count": 6
+    },
+    "trades-bold": {
+      "queries": [
+        "construction site worker action",
+        "power tools work close up",
+        "builder scaffolding dramatic"
+      ],
+      "count": 6
+    },
+    "plumbing-modern": {
+      "queries": [
+        "plumber working pipes",
+        "boiler installation heating engineer",
+        "modern bathroom plumbing fittings"
+      ],
+      "count": 6
+    },
+    "roofing-heritage": {
+      "queries": [
+        "roofer slate roof tiles",
+        "roof repair traditional house",
+        "chimney rooftop craftsmanship"
+      ],
+      "count": 6
+    },
+    "electrical-bold": {
+      "queries": [
+        "electrician wiring work",
+        "electrical panel installation",
+        "electrician tools cables close up"
+      ],
+      "count": 6
+    }
+  }
+}

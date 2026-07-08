@@ -1,4 +1,4 @@
-import type { ImageRef } from '@tradies/site-spec'
+import type { ImageRef, SiteLocation } from '@tradies/site-spec'
 
 /** A resolved, ready-to-serve URL (plus intrinsic size when known) for a pool ImageRef. */
 export type ResolvedImage = { src: string; width?: number; height?: number }
@@ -14,6 +14,8 @@ export type TemplateContext = {
   leadFormAction: string
   /** Google place id — the live reviews widget renders only when present. */
   placeId?: string | null
+  /** Keyless map embed + real Google-listing reviews link, built in code. */
+  location?: SiteLocation | null
   /** Set on concept previews; renders the compliance banner above the header. */
   previewBanner?: { operatorName: string; claimUrl?: string } | null
   /** Optional chat widget script, injected after the footer when set. */

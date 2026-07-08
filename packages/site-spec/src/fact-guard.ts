@@ -1,13 +1,15 @@
 import type { BusinessFacts } from './facts'
 import { ACCREDITATION_LABELS } from './facts'
 import type { SiteSpec } from './site-spec'
+import type { SlotKind, SlotManifest } from './slot-manifest'
 
 /**
- * FACT-GUARD: rejects specs whose copy asserts facts not grounded in the
- * facts sheet. This is the hard implementation of the DMCC/CMA guardrail —
+ * FACT-GUARD: rejects generated content that asserts facts not grounded in
+ * the facts sheet. This is the hard implementation of the DMCC/CMA guardrail —
  * fabricated reviews, accreditations, history, guarantees or superlatives are
- * blocked by a validator, not a prompt. It runs after Zod shape validation
- * and before any spec is persisted.
+ * blocked by a validator, not a prompt. The string-level core
+ * (validateStringsAgainstFacts) is shared by the component-spec validator,
+ * the html content-doc validator, and the pitch validator.
  */
 
 export type Violation = {
@@ -29,10 +31,10 @@ export type ValidationReport = {
   violations: Violation[]
 }
 
-type Located = { path: string; text: string }
+export type LocatedString = { path: string; text: string }
 
 /** Collect every human-readable string in the spec with its JSON path. */
-function collectStrings(value: unknown, path: string, out: Located[]): void {
+function collectStrings(value: unknown, path: string, out: LocatedString[]): void {
   if (typeof value === 'string') {
     out.push({ path, text: value })
   } else if (Array.isArray(value)) {
@@ -49,7 +51,7 @@ function collectStrings(value: unknown, path: string, out: Located[]): void {
 
 const digitsOnly = (s: string) => s.replace(/\D/g, '')
 
-function phonesMatch(a: string, b: string): boolean {
+export function phonesMatch(a: string, b: string): boolean {
   const da = digitsOnly(a)
   const db = digitsOnly(b)
   if (!da || !db) return false
@@ -63,7 +65,7 @@ const HISTORY_YEAR = /\b(?:established|est\.?|since|founded)\s+(?:in\s+)?((?:19|
 const YEARS_CLAIM = /\b(\d{1,3})\s*\+?\s*years?[''s]*\b/gi
 
 // review-shaped content that must never appear as static copy
-const REVIEW_PATTERNS: RegExp[] = [
+export const REVIEW_PATTERNS: RegExp[] = [
   /\btestimonial/i,
   /\b(five|5)[\s-]*star\b/i,
   /\brated\s+(us|\d|five)/i,
@@ -72,6 +74,11 @@ const REVIEW_PATTERNS: RegExp[] = [
   /\b\d(\.\d)?\s*(\/|out of)\s*5\b/i,
   /\b(google|trustpilot|checkatrade|yell)\s+(reviews?|rating)/i,
 ]
+
+/** True when the text looks like a review/testimonial — used by template validation too. */
+export function looksLikeReviewContent(text: string): boolean {
+  return REVIEW_PATTERNS.some((pattern) => pattern.test(text))
+}
 
 // claims that need evidence in facts.claims (or an evidenced accreditation)
 const EVIDENCE_KEYWORDS: { pattern: RegExp; label: string }[] = [
@@ -93,36 +100,21 @@ function factsText(facts: BusinessFacts): string {
   return parts.join(' \n ').toLowerCase()
 }
 
-export function validateSpecAgainstFacts(
-  spec: SiteSpec,
+/**
+ * The string-level core: history claims, review-shaped content and
+ * evidence-required keywords, checked against the facts sheet. Works on any
+ * located strings — a SiteSpec walk, an html content doc, or a pitch body.
+ */
+export function validateStringsAgainstFacts(
+  located: LocatedString[],
+  facts: BusinessFacts,
   options: { now?: Date } = {},
-): ValidationReport {
+): Violation[] {
   const now = options.now ?? new Date()
-  const facts = spec.facts
   const violations: Violation[] = []
-  const located: Located[] = []
-  collectStrings({ identity: spec.identity, sections: spec.sections, seo: spec.seo }, '', located)
-
-  // 1. Badges must be evidenced accreditations
-  const evidenced = new Set(facts.accreditations.map((a) => a.id))
-  spec.sections.forEach((section, i) => {
-    const badges = section.kind === 'hero' || section.kind === 'trust' ? (section.badges ?? []) : []
-    for (const badge of badges) {
-      if (!evidenced.has(badge)) {
-        violations.push({
-          code: 'unevidenced_badge',
-          path: `sections[${i}].badges`,
-          message: `Badge "${badge}" is not in the evidenced accreditations for this business`,
-          snippet: badge,
-        })
-      }
-    }
-  })
-
   const allowedClaims = factsText(facts)
 
   for (const { path, text } of located) {
-    // 2. History claims
     for (const match of text.matchAll(HISTORY_YEAR)) {
       const year = Number(match[1])
       if (!facts.foundedYear) {
@@ -164,7 +156,6 @@ export function validateSpecAgainstFacts(
       }
     }
 
-    // 3. Review-shaped content
     for (const pattern of REVIEW_PATTERNS) {
       const match = text.match(pattern)
       if (match) {
@@ -179,7 +170,6 @@ export function validateSpecAgainstFacts(
       }
     }
 
-    // 4. Evidence-required keywords
     for (const { pattern, label } of EVIDENCE_KEYWORDS) {
       const match = text.match(pattern)
       if (match && !allowedClaims.includes(match[0].toLowerCase())) {
@@ -196,6 +186,37 @@ export function validateSpecAgainstFacts(
       }
     }
   }
+
+  return violations
+}
+
+export function validateSpecAgainstFacts(
+  spec: SiteSpec,
+  options: { now?: Date } = {},
+): ValidationReport {
+  const facts = spec.facts
+  const violations: Violation[] = []
+  const located: LocatedString[] = []
+  collectStrings({ identity: spec.identity, sections: spec.sections, seo: spec.seo }, '', located)
+
+  // 1. Badges must be evidenced accreditations
+  const evidenced = new Set(facts.accreditations.map((a) => a.id))
+  spec.sections.forEach((section, i) => {
+    const badges = section.kind === 'hero' || section.kind === 'trust' ? (section.badges ?? []) : []
+    for (const badge of badges) {
+      if (!evidenced.has(badge)) {
+        violations.push({
+          code: 'unevidenced_badge',
+          path: `sections[${i}].badges`,
+          message: `Badge "${badge}" is not in the evidenced accreditations for this business`,
+          snippet: badge,
+        })
+      }
+    }
+  })
+
+  // 2–4. The shared string-level core
+  violations.push(...validateStringsAgainstFacts(located, facts, options))
 
   // 5. Contact integrity
   if (spec.identity.phone) {
@@ -236,6 +257,93 @@ export function validateSpecAgainstFacts(
       }
     })
   })
+
+  return { ok: violations.length === 0, violations }
+}
+
+/**
+ * FACT-GUARD for html-kind content docs: the shared string core plus
+ * slot-kind structural checks (phone/email slots must match the evidence;
+ * area slots must be grounded in the facts sheet).
+ */
+export function validateContentDocAgainstFacts(
+  doc: {
+    slots: Record<string, string>
+    repeats: Record<string, Record<string, string>[]>
+  },
+  manifest: SlotManifest,
+  facts: BusinessFacts,
+  options: { now?: Date } = {},
+): ValidationReport {
+  const violations: Violation[] = []
+  const located: LocatedString[] = []
+  const kindByPath = new Map<string, SlotKind>()
+
+  for (const slot of manifest.slots) {
+    const text = doc.slots[slot.id]
+    if (typeof text !== 'string') continue
+    const path = `slots.${slot.id}`
+    located.push({ path, text })
+    kindByPath.set(path, slot.kind)
+  }
+  for (const group of manifest.repeats) {
+    const items = doc.repeats[group.id] ?? []
+    items.forEach((item, i) => {
+      for (const slot of group.itemSlots) {
+        const text = item[slot.id]
+        if (typeof text !== 'string') continue
+        const path = `repeats.${group.id}[${i}].${slot.id}`
+        located.push({ path, text })
+        kindByPath.set(path, slot.kind)
+      }
+    })
+  }
+
+  violations.push(...validateStringsAgainstFacts(located, facts, options))
+
+  const allowedAreas = new Set(
+    [...facts.serviceAreas, facts.town].map((a) => a.trim().toLowerCase()),
+  )
+  for (const { path, text } of located) {
+    const kind = kindByPath.get(path)
+    if (kind === 'phone') {
+      if (!facts.phone || !phonesMatch(text, facts.phone.value)) {
+        violations.push({
+          code: 'contact_mismatch',
+          path,
+          message: 'Displayed phone does not match the evidenced phone in the facts sheet',
+          snippet: text,
+        })
+      }
+    } else if (kind === 'email') {
+      if (!facts.email || text.trim().toLowerCase() !== facts.email.value.toLowerCase()) {
+        violations.push({
+          code: 'contact_mismatch',
+          path,
+          message: 'Displayed email does not match the evidenced email in the facts sheet',
+          snippet: text,
+        })
+      }
+    } else if (kind === 'area') {
+      if (!allowedAreas.has(text.trim().toLowerCase())) {
+        violations.push({
+          code: 'unknown_service_area',
+          path,
+          message: `Service area "${text}" is not in the facts sheet`,
+          snippet: text,
+        })
+      }
+    } else if (kind === 'business-name') {
+      if (text.trim().toLowerCase() !== facts.businessName.trim().toLowerCase()) {
+        violations.push({
+          code: 'contact_mismatch',
+          path,
+          message: 'Business name slot does not match the facts sheet',
+          snippet: text,
+        })
+      }
+    }
+  }
 
   return { ok: violations.length === 0, violations }
 }

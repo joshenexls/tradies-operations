@@ -1,0 +1,8 @@
+# generated
+pnpm-lock.yaml
+packages/db/drizzle/
+next-env.d.ts
+.next/
+.open-next/
+.turbo/
+test-results/

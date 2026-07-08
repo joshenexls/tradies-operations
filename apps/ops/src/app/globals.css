@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+
+/* The library sample render uses template components — scan them too. */
+@source '../../../../packages/templates/src/**/*.tsx';

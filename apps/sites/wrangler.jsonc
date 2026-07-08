@@ -1,0 +1,43 @@
+// Cloudflare Workers config for the tenant sites app (deployed via
+// `pnpm --filter @tradies/sites build:cf` then `wrangler deploy`).
+// Deploy-day runbook: docs/deploy-cloudflare.md
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tradies-sites",
+  "main": ".open-next/worker.js",
+  // Keep <= the workerd version pinned by the wrangler devDependency
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "r2_buckets": [
+    {
+      // OpenNext incremental cache (open-next.config.ts) — create before deploy:
+      //   wrangler r2 bucket create tradies-sites-inc-cache
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "tradies-sites-inc-cache"
+    }
+  ],
+  // Non-secret runtime config. Secrets are NOT vars — set them with
+  // `wrangler secret put <NAME>` after the first deploy:
+  //   wrangler secret put DATABASE_URL        # Supabase POOLED string (port 6543)
+  //   wrangler secret put PREVIEW_VISIT_SALT  # preview-visit hashing salt
+  "vars": {
+    "PREVIEW_BASE_HOST": "app.tradies.co.uk",
+    "IMAGE_POOL_SOURCE": "r2",
+    "POOL_BASE_URL": "https://pools.tradies.co.uk",
+    "OPERATOR_BRAND_NAME": "Tradies Studio",
+    "OPERATOR_LEGAL_NAME": "Tradies Studio Ltd",
+    "OPERATOR_CONTACT_EMAIL": "privacy@tradies.co.uk"
+  },
+  // Wildcard tenant hosts — enable once the founder wires DNS (see
+  // docs/deploy-cloudflare.md §DNS; needs the *.app.tradies.co.uk cert):
+  // "routes": [
+  //   { "pattern": "*.app.tradies.co.uk/*", "zone_name": "tradies.co.uk" }
+  // ],
+  "observability": {
+    "enabled": true
+  }
+}
